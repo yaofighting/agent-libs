@@ -344,8 +344,16 @@ const struct ppm_event_info g_event_info[PPM_EVENT_MAX] = {
 	/* PPME_TCP_CLOSE_X */{"tcp_close", EC_NET, EF_UNUSED, 0},
 	/* PPME_TCP_DROP_E */{"tcp_drop", EC_NET, EF_DROP_SIMPLE_CONS | EF_NONE_PARSE, 1, {{"tuple", PT_SOCKTUPLE, PF_NA}} },
 	/* PPME_TCP_DROP_X */{"tcp_drop", EC_NET, EF_UNUSED, 0},
-	/* PPME_TCP_DROP_E */{"tcp_retransmit_skb", EC_NET, EF_DROP_SIMPLE_CONS | EF_NONE_PARSE, 1, {{"tuple", PT_SOCKTUPLE, PF_NA}} },
-	/* PPME_TCP_DROP_X */{"tcp_retransmit_skb", EC_NET, EF_UNUSED, 0},
+	/* PPME_TCP_RETRANSMIT_SKB_E */{"tcp_retransmit_skb", EC_NET, EF_DROP_SIMPLE_CONS | EF_NONE_PARSE, 1, {{"tuple", PT_SOCKTUPLE, PF_NA}} },
+	/* PPME_TCP_RETRANSMIT_SKB_X */{"tcp_retransmit_skb", EC_NET, EF_UNUSED, 0},
+	/* PPME_TCP_CONNECT_E */{"tcp_connect", EC_NET, EF_UNUSED, 0},
+	/* PPME_TCP_CONNECT_X */{"tcp_connect", EC_NET, EF_DROP_SIMPLE_CONS | EF_NONE_PARSE, 2, {{"retval", PT_UINT64, PF_DEC}, {"tuple", PT_SOCKTUPLE, PF_NA}} },
+	/* PPME_TCP_SET_STATE_E */{"tcp_set_state", EC_NET, EF_DROP_SIMPLE_CONS | EF_NONE_PARSE, 3, {{"tuple", PT_SOCKTUPLE, PF_NA}, {"old_state", PT_INT32, PF_NA}, {"new_state", PT_INT32, PF_NA}} },
+	/* PPME_TCP_SET_STATE_X */{"tcp_set_state", EC_NET, EF_UNUSED, 0},
+	/* PPME_TCP_SEND_RESET_E */{"tcp_send_reset", EC_NET, EF_DROP_SIMPLE_CONS | EF_NONE_PARSE, 2, {{"tuple", PT_SOCKTUPLE, PF_NA}, {"state", PT_UINT32, PF_DEC} } },
+	/* PPME_TCP_SEND_RESET_X */{"tcp_send_reset", EC_NET, EF_UNUSED, 0},
+	/* PPME_TCP_RECEIVE_RESET_E */{"tcp_receive_reset", EC_NET, EF_DROP_SIMPLE_CONS | EF_NONE_PARSE, 2, {{"tuple", PT_SOCKTUPLE, PF_NA}, {"state", PT_UINT32, PF_DEC} } },
+	/* PPME_TCP_RECEIVE_RESET_X */{"tcp_send_reset", EC_NET, EF_UNUSED, 0},
 	/* PPME_CPU_ANALYSIS_E */{"cpu_analysis", EC_PROCESS, EF_NONE_PARSE, 6, {{"start_ts", PT_UINT64, PF_DEC}, {"end_ts", PT_UINT64, PF_DEC}, {"cnt", PT_UINT32, PF_DEC}, {"time_specs", PT_BYTEBUF, PF_NA}, {"runq_latency", PT_BYTEBUF, PF_NA}, {"time_type", PT_BYTEBUF, PF_NA}}},
 	/* PPME_CPU_ANALYSIS_X */{"cpu_analysis", EC_PROCESS, EF_UNUSED, 0}
 	/* NB: Starting from scap version 1.2, event types will no longer be changed when an event is modified, and the only kind of change permitted for pre-existent events is adding parameters.

@@ -4740,20 +4740,74 @@ KP_FILLER(tcp_retransmit_skb_kprobe_e)
 	return 0;
 }
 
-FILLER(tcp_retransmit_skb_e, false)
+KP_FILLER(tcp_connect_kprobe_x)
 {
 
+	struct pt_regs *args = (struct pt_regs*)data->ctx;
+	int retval = 0;
+	retval= regs_return_value(args);
+	unsigned long long id = bpf_get_current_pid_tgid() & 0xffffffff;
+	struct tuple *tp = bpf_map_lookup_elem(&stash_tuple_map, &id);
+	if(tp==NULL){
+		return 0;
+	}
+	int res;
+	res = bpf_val_to_ring(data, retval);
+	if (res != PPM_SUCCESS)
+		return res;
+	res = tuple_to_ring(data, tp);
+	if (res != PPM_SUCCESS)
+		return res;
+	return 0;
+}
+
+KP_FILLER(tcp_set_state_kprobe_e)
+{
+	struct pt_regs *args = (struct pt_regs*)data->ctx;
+	struct sock *sk = (struct sock *)_READ(args->di);
+	u8 old_state = 0;
+	bpf_probe_read(&old_state, sizeof(old_state), (void *)&sk->sk_state);
+	int new_state = _READ(args->si);
+
+	int res;
+	res = sock_to_ring(data, sk);
+	if (res != PPM_SUCCESS)
+		return res;
+
+	res = bpf_val_to_ring(data, old_state);
+	if (res != PPM_SUCCESS)
+		return res;
+
+	res = bpf_val_to_ring(data, new_state);
+	if (res != PPM_SUCCESS)
+		return res;
+	return 0;
+}
+
+FILLER(tcp_retransmit_skb_e, false)
+{
+	return 0;
 }
 
 FILLER(tcp_rcv_established_e, false)
 {
-
+	return 0;
 }
 
 
 FILLER(tcp_drop_e, false)
 {
+	return 0;
+}
 
+FILLER(tcp_connect_x, false)
+{
+	return 0;
+}
+
+FILLER(tcp_set_state_e, false)
+{
+	return 0;
 }
 
 
@@ -4818,6 +4872,56 @@ FILLER(netif_receive_skb_e, false)
 
 	res = parse_tuple(data, skb);
 
+	if (res != PPM_SUCCESS)
+		return res;
+	return 0;
+}
+
+FILLER(tcp_send_reset_e, false)
+{
+	struct tcp_reset_args *args;
+	struct sock *sk;
+	long size = 0;
+	args = (struct tcp_reset_args*) data->ctx;
+
+#ifdef BPF_SUPPORTS_RAW_TRACEPOINTS
+	sk = args->sk;
+#else
+	sk = (struct sock*) args->skaddr;
+#endif
+
+	int res;
+	res = sock_to_ring(data, sk);
+	if (res != PPM_SUCCESS)
+		return res;
+	unsigned long state;
+	bpf_probe_read(&state, sizeof(state), (void *)&sk->__sk_common.skc_state);
+	res = bpf_val_to_ring(data, state);
+	if (res != PPM_SUCCESS)
+		return res;
+	return 0;
+}
+
+FILLER(tcp_receive_reset_e, false)
+{
+	struct tcp_reset_args *args;
+	struct sock *sk;
+	long size = 0;
+	args = (struct tcp_reset_args*) data->ctx;
+
+#ifdef BPF_SUPPORTS_RAW_TRACEPOINTS
+	sk = args->sk;
+#else
+	sk = (struct sock*) args->skaddr;
+#endif
+
+	int res;
+	res = sock_to_ring(data, sk);
+	if (res != PPM_SUCCESS)
+		return res;
+	unsigned long state;
+	bpf_probe_read(&state, sizeof(state), (void *)&sk->__sk_common.skc_state);
+	res = bpf_val_to_ring(data, state);
 	if (res != PPM_SUCCESS)
 		return res;
 	return 0;

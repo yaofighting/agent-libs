@@ -581,6 +581,118 @@ BPF_KPROBE(sock_recvmsg) {
     bpf_map_update_elem(&type_map, &tid, &type, BPF_ANY);
     return 0;
 }
+BPF_KPROBE(tcp_connect)
+{
+	struct sysdig_bpf_settings *settings;
+	enum ppm_event_type evt_type;
+	settings = get_bpf_settings();
+	if (!settings)
+		return 0;
+
+
+
+	struct sock *sk = (struct sock *)_READ(ctx->di);
+	const struct inet_sock *inet = inet_sk(sk);
+
+	u16 sport = 0;
+	u16 dport = 0;
+	u32 saddr = 0;
+	u32 daddr = 0;
+	u16 family = 0;
+
+
+	bpf_probe_read(&sport, sizeof(sport), (void *)&inet->inet_sport);
+	bpf_probe_read(&dport, sizeof(dport), (void *)&inet->inet_dport);
+	bpf_probe_read(&saddr, sizeof(saddr), (void *)&inet->inet_saddr);
+	bpf_probe_read(&daddr, sizeof(daddr), (void *)&inet->inet_daddr);
+	bpf_probe_read(&family, sizeof(family), (void *)&sk->__sk_common.skc_family);
+
+	struct tuple tp = {0};
+	tp.daddr = daddr;
+	tp.dport = dport;
+	tp.saddr = saddr;
+	tp.sport = sport;
+	tp.family = family;
+	tp.pad = 1;
+
+	unsigned long long id = bpf_get_current_pid_tgid() & 0xffffffff;
+	int ret = bpf_map_update_elem(&stash_tuple_map, &id, &tp, BPF_ANY);
+
+}
+
+BPF_KRET_PROBE(tcp_connect)
+{
+	struct sysdig_bpf_settings *settings;
+	enum ppm_event_type evt_type;
+	settings = get_bpf_settings();
+	if (!settings)
+		return 0;
+
+	evt_type = PPME_TCP_CONNECT_X;
+	if(prepare_filler(ctx, ctx, evt_type, settings, UF_NEVER_DROP)){
+		bpf_tcp_connect_kprobe_x(ctx);
+	}
+}
+
+BPF_KPROBE(tcp_set_state)
+{
+	struct sysdig_bpf_settings *settings;
+	enum ppm_event_type evt_type;
+	settings = get_bpf_settings();
+	if (!settings)
+		return 0;
+	struct sock *sk = (struct sock *)_READ(ctx->di);
+	u16 family = 0;
+	bpf_probe_read(&family, sizeof(family), (void *)&sk->__sk_common.skc_family);
+	if(family != AF_INET)
+		return 0;
+
+	const struct inet_sock *inet = inet_sk(sk);
+	u8 old_state = 0;
+	bpf_probe_read(&old_state, sizeof(old_state), (void *)&sk->sk_state);
+	int new_state = _READ(ctx->si);
+	if(old_state == 1 || new_state == 1){
+		evt_type = PPME_TCP_SET_STATE_E;
+		if(prepare_filler(ctx, ctx, evt_type, settings, UF_NEVER_DROP)){
+			bpf_tcp_set_state_kprobe_e(ctx);
+		}
+	}
+
+
+}
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0)
+BPF_PROBE("tcp/", tcp_send_reset, tcp_reset_args){
+	struct sysdig_bpf_settings *settings;
+	enum ppm_event_type evt_type;
+	settings = get_bpf_settings();
+	if (!settings)
+		return 0;
+	if (!settings->capture_enabled)
+		return 0;
+
+	evt_type = PPME_TCP_SEND_RESET_E;
+
+	call_filler(ctx, ctx, evt_type, settings, UF_NEVER_DROP);
+}
+
+BPF_PROBE("tcp/", tcp_receive_reset, tcp_reset_args){
+	struct sock *sk;
+	struct sysdig_bpf_settings *settings;
+	enum ppm_event_type evt_type;
+	settings = get_bpf_settings();
+	if (!settings)
+		return 0;
+	if (!settings->capture_enabled)
+		return 0;
+	evt_type = PPME_TCP_RECEIVE_RESET_E;
+
+	call_filler(ctx, ctx, evt_type, settings, UF_NEVER_DROP);
+
+}
+#endif
+
+
 
 BPF_KPROBE(sock_sendmsg) {
     u32 tid = bpf_get_current_pid_tgid();
