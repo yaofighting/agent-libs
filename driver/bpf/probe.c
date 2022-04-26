@@ -183,8 +183,8 @@ BPF_PROBE("sched/", sched_switch, sched_switch_args)
 	struct task_struct *p = (struct task_struct *) ctx->prev;
 	struct task_struct *n = (struct task_struct *) ctx->next;
 
-	u32 tid = p->pid;
-	u32 pid = p->tgid;
+	u32 tid = _READ(p->pid);
+	u32 pid = _READ(p->tgid);
 	u64 ts, *tsp;
 
 	if (FILTER) {
@@ -213,8 +213,8 @@ BPF_PROBE("sched/", sched_switch, sched_switch_args)
         }
     }
     // get the current thread's start time
-    tid = n->pid;
-    pid = n->tgid;
+    tid = _READ(n->pid);
+    pid = _READ(n->tgid);
     if (!(FILTER))
         return 0;
 
