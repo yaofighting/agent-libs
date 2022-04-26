@@ -68,7 +68,11 @@ BPF_PROBE("raw_syscalls/", sys_enter, sys_enter_args)
 
 	if (!settings->capture_enabled)
 		return 0;
-
+#ifdef CPU_ANALYSIS
+	enum offcpu_type type = get_syscall_type((int)id);
+    u32 tid = bpf_get_current_pid_tgid();
+    bpf_map_update_elem(&type_map, &tid, &type, BPF_ANY);
+#endif
 	sc_evt = get_syscall_info(id);
 	if (!sc_evt)
 		return 0;
@@ -160,6 +164,7 @@ BPF_PROBE("sched/", sched_process_exit, sched_process_exit_args)
 	return 0;
 }
 
+
 BPF_PROBE("sched/", sched_switch, sched_switch_args)
 {
 	struct sysdig_bpf_settings *settings;
@@ -171,7 +176,72 @@ BPF_PROBE("sched/", sched_switch, sched_switch_args)
 
 	if (!settings->capture_enabled)
 		return 0;
+#ifdef CPU_ANALYSIS
+#define FILTER 1
+#define MINBLOCK_US 1
+#define MAXBLOCK_US ((1 << 48) - 1)
+	struct task_struct *p = (struct task_struct *) ctx->prev;
+	struct task_struct *n = (struct task_struct *) ctx->next;
 
+	u32 tid = p->pid;
+	u32 pid = p->tgid;
+	u64 ts, *tsp;
+
+	if (FILTER) {
+	    // record previous thread sleep time
+        ts = bpf_ktime_get_ns();
+        bpf_map_update_elem(&off_start_ts, &tid, &ts, BPF_ANY);
+
+        // calculate oncpu time, sleep time - &on_start_ts
+        // p is the focus thread, it switch off
+        u64 *on_ts;
+        on_ts = bpf_map_lookup_elem(&on_start_ts, &tid);
+        if (on_ts != 0) {
+            u64 delta = ts - *on_ts;
+            delta = delta / 1000; // convert to us
+            bpf_map_delete_elem(&on_start_ts, &tid);
+            if ((delta >= MINBLOCK_US) && (delta <= MAXBLOCK_US)) {
+                // create map key
+                struct key_t key = {};
+                key.tid = tid;
+                bpf_probe_read_str(&key.target, sizeof(key.target), p->comm);
+                if (key.target[0] == 'X' && key.target[1] == 'N') {
+//                    add_times(ctx, key, *on_ts, delta, 1, 0);
+                    aggregate(pid, tid, *on_ts, delta, 1);
+                }
+            }
+        }
+    }
+    // get the current thread's start time
+    tid = n->pid;
+    pid = n->tgid;
+    if (!(FILTER))
+        return 0;
+
+    // record oncpu start time
+    u64 on_ts = bpf_ktime_get_ns();
+    // record on start time
+    bpf_map_update_elem(&on_start_ts, &tid, &on_ts, BPF_ANY);
+
+    tsp = bpf_map_lookup_elem(&off_start_ts, &tid);
+    if (tsp != 0) {
+        u64 off_ts = *tsp;
+        bpf_map_delete_elem(&off_start_ts, &tid);
+        // calculate current thread's off delta time
+        u64 delta = on_ts - off_ts;
+        delta = delta / 1000;
+        if ((delta >= MINBLOCK_US) && (delta <= MAXBLOCK_US)) {
+            // create map key
+            struct key_t key = {};
+            key.tid = tid;
+            bpf_probe_read_str(&key.target, sizeof(key.target), n->comm);
+            if (key.target[0] == 'X' && key.target[1] == 'N') {
+//                add_times(ctx, key, 0, delta, 0, p->pid);
+                aggregate(pid, tid, off_ts, delta, 0);
+            }
+        }
+    }
+#endif
 	evt_type = PPME_SCHEDSWITCH_6_E;
 
 	call_filler(ctx, ctx, evt_type, settings, 0);
@@ -451,8 +521,29 @@ BPF_KPROBE(tcp_retransmit_skb)
 
 	return 0;
 }
+#ifdef CPU_ANALYSIS
+BPF_KPROBE(sock_recvmsg) {
+    u32 tid = bpf_get_current_pid_tgid();
 
+    if (!(FILTER))
+        return 0;
+    // update to NET
+    enum offcpu_type type = NET;
+    bpf_map_update_elem(&type_map, &tid, &type, BPF_ANY);
+    return 0;
+}
 
+BPF_KPROBE(sock_sendmsg) {
+    u32 tid = bpf_get_current_pid_tgid();
+
+    if (!(FILTER))
+        return 0;
+    // update to NET
+    enum offcpu_type type = NET;
+    bpf_map_update_elem(&type_map, &tid, &type, BPF_ANY);
+    return 0;
+}
+#endif
 char kernel_ver[] __bpf_section("kernel_version") = UTS_RELEASE;
 
 char __license[] __bpf_section("license") = "GPL";

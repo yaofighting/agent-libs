@@ -4686,8 +4686,8 @@ FILLER(net_dev_start_xmit_e, false)
 	struct sk_buff *skb;
 	char dev_name[16] = {0};
 #ifdef BPF_SUPPORTS_RAW_TRACEPOINTS
-	skb = args->skb;
-	bpf_probe_read((void *)dev_name, 16, args->dev->name);
+	skb = ctx->skb;
+	bpf_probe_read((void *)dev_name, 16, ctx->dev->name);
 #else
 	skb = (struct sk_buff*) ctx->skbaddr;
 	TP_DATA_LOC_READ(dev_name, name, 16);
@@ -4718,7 +4718,7 @@ FILLER(netif_receive_skb_e, false)
 	struct sk_buff *skb;
 	char dev_name[16] = {0};
 #ifdef BPF_SUPPORTS_RAW_TRACEPOINTS
-	skb = args->skb;
+	skb = ctx->skb;
 	struct net_device *dev;
 	dev = _READ(skb->dev);
 	bpf_probe_read((void *)dev_name, 16, dev->name);

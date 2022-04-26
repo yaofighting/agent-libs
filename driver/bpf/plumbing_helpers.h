@@ -40,6 +40,96 @@ or GPL2.txt for full copies of the license.
 #define bpf_printk(fmt, ...)
 #endif
 
+#ifdef CPU_ANALYSIS
+static __always_inline bool check_cpu_whitelist() {
+    u32 pid = bpf_get_current_pid_tgid() >> 32;
+    bool flag = bpf_map_lookup_elem(&cpu_analysis_pid_whitelist, &pid);
+    if (flag == 1) {
+        return true;
+    }
+    return false;
+}
+static __always_inline enum offcpu_type get_syscall_type(int syscall_id) {
+        enum offcpu_type *typep;
+        typep = bpf_map_lookup_elem(&syscall_map, &syscall_id);
+        if (typep != 0)
+            return *typep;
+
+        enum offcpu_type type;
+        switch(syscall_id) {
+        case __NR_read :
+        case __NR_pread64 :
+        case __NR_readv :
+        case __NR_preadv :
+        case __NR_write :
+        case __NR_pwrite64 :
+        case __NR_writev :
+        case __NR_pwritev :
+        case __NR_sync :
+        case __NR_sync_file_range :
+        case __NR_fsync :
+        case __NR_msync :
+            type = DISK;
+            break;
+        case __NR_recvfrom :
+        case __NR_recvmmsg :
+        case __NR_recvmsg :
+        case __NR_sendto :
+        case __NR_sendmsg :
+        case __NR_sendmmsg :
+        case __NR_connect :
+        case __NR_accept :
+            type = NET;
+            break;
+        case __NR_futex :
+            type = LOCK;
+            break;
+        case __NR_epoll_pwait :
+        case __NR_epoll_wait :
+        case __NR_poll :
+        case __NR_ppoll :
+        case __NR_pselect6 :
+        case __NR_select :
+        case __NR_nanosleep :
+        case __NR_io_getevents :
+        // yield
+            type = IDLE;
+            break;
+        default:
+            type = OTHER;
+        }
+        bpf_map_update_elem(&syscall_map, &syscall_id, &type, BPF_ANY);
+        return type;
+}
+
+static __always_inline void aggregate(u32 pid, u32 tid, u64 start_time, u64 current_interval, bool is_on) {
+    struct time_aggregate_t* p_time = bpf_map_lookup_elem(&aggregate_time, &pid);
+    if (p_time == 0) {
+        struct time_aggregate_t time_aggregate = {};
+        time_aggregate.start_time = start_time;
+        bpf_map_update_elem(&aggregate_time, &pid, &time_aggregate, BPF_ANY);
+        p_time = bpf_map_lookup_elem(&aggregate_time, &pid);
+    }
+    if (p_time != 0) {
+        if (is_on) {
+            p_time->total_times[0] += current_interval;
+        } else {
+            enum offcpu_type *typep, type;
+            typep = bpf_map_lookup_elem(&type_map, &tid);
+            bpf_map_delete_elem(&type_map, &tid);
+            if (typep == 0) {
+                type = OTHER;
+            } else {
+                type = *typep;
+            }
+            p_time->total_times[1] += current_interval;
+            p_time->time_specs[((int)type - 1) & (TYPE_NUM - 1)] += current_interval;
+        }
+        bpf_map_update_elem(&aggregate_time, &pid, p_time, BPF_ANY);
+    }
+}
+#endif
+
 #ifndef BPF_SUPPORTS_RAW_TRACEPOINTS
 static __always_inline int __stash_args(unsigned long long id,
 					unsigned long *args)
