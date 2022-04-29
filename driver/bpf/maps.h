@@ -115,9 +115,16 @@ enum offcpu_type {
     OTHER
 };
 
-struct key_t {
-    u32  tid;
-    char target[TASK_COMM_LEN];
+#define NUM 16
+struct info_t {
+    u32 pid;
+    u32 tid;
+    char comm[TASK_COMM_LEN];
+    u32 index;
+    u64 times[NUM];
+    u8 time_type[NUM];
+    u64 start_ts;
+    u64 end_ts;
 };
 
 #define TYPE_NUM 8
@@ -172,6 +179,13 @@ struct bpf_map_def __bpf_section("maps") cpu_analysis_pid_whitelist = {
         .type = BPF_MAP_TYPE_HASH,
         .key_size = sizeof(u32),
         .value_size = sizeof(bool),
+        .max_entries = 1000,
+};
+
+struct bpf_map_def __bpf_section("maps") cpu_records = {
+        .type = BPF_MAP_TYPE_HASH,
+        .key_size = sizeof(u32),
+        .value_size = sizeof(struct info_t),
         .max_entries = 1000,
 };
 #endif // __KERNEL__

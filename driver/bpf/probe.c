@@ -164,7 +164,7 @@ BPF_PROBE("sched/", sched_process_exit, sched_process_exit_args)
 	return 0;
 }
 
-
+#ifndef CPU_ANALYSIS
 BPF_PROBE("sched/", sched_switch, sched_switch_args)
 {
 	struct sysdig_bpf_settings *settings;
@@ -176,17 +176,36 @@ BPF_PROBE("sched/", sched_switch, sched_switch_args)
 
 	if (!settings->capture_enabled)
 		return 0;
+
+	evt_type = PPME_SCHEDSWITCH_6_E;
+
+	call_filler(ctx, ctx, evt_type, settings, 0);
+	return 0;
+}
+#endif
+
 #ifdef CPU_ANALYSIS
+BPF_PROBE("sched/", sched_switch, sched_switch_args)
+{
+	struct sysdig_bpf_settings *settings;
+	enum ppm_event_type evt_type;
+
+	settings = get_bpf_settings();
+	if (!settings)
+		return 0;
+
+	if (!settings->capture_enabled)
+		return 0;
+
 #define FILTER 1
 #define MINBLOCK_US 1
-#define MAXBLOCK_US ((1 << 48) - 1)
+#define MAXBLOCK_US ((1UL << 48) - 1)
 	struct task_struct *p = (struct task_struct *) ctx->prev;
 	struct task_struct *n = (struct task_struct *) ctx->next;
 
 	u32 tid = _READ(p->pid);
 	u32 pid = _READ(p->tgid);
 	u64 ts, *tsp;
-
 	if (FILTER) {
 	    // record previous thread sleep time
         ts = bpf_ktime_get_ns();
@@ -201,12 +220,8 @@ BPF_PROBE("sched/", sched_switch, sched_switch_args)
             delta = delta / 1000; // convert to us
             bpf_map_delete_elem(&on_start_ts, &tid);
             if ((delta >= MINBLOCK_US) && (delta <= MAXBLOCK_US)) {
-                // create map key
-                struct key_t key = {};
-                key.tid = tid;
-                bpf_probe_read_str(&key.target, sizeof(key.target), p->comm);
-                if (key.target[0] == 'X' && key.target[1] == 'N') {
-//                    add_times(ctx, key, *on_ts, delta, 1, 0);
+                if (check_in_cpu_whitelist(pid)) {
+                    record_cputime(ctx, settings, pid, tid, *on_ts, delta, 1);
                     aggregate(pid, tid, *on_ts, delta, 1);
                 }
             }
@@ -231,22 +246,15 @@ BPF_PROBE("sched/", sched_switch, sched_switch_args)
         u64 delta = on_ts - off_ts;
         delta = delta / 1000;
         if ((delta >= MINBLOCK_US) && (delta <= MAXBLOCK_US)) {
-            // create map key
-            struct key_t key = {};
-            key.tid = tid;
-            bpf_probe_read_str(&key.target, sizeof(key.target), n->comm);
-            if (key.target[0] == 'X' && key.target[1] == 'N') {
-//                add_times(ctx, key, 0, delta, 0, p->pid);
+            if (check_in_cpu_whitelist(pid)) {
+                record_cputime(ctx, settings, pid, tid, off_ts, delta, 0);
                 aggregate(pid, tid, off_ts, delta, 0);
             }
         }
     }
-#endif
-	evt_type = PPME_SCHEDSWITCH_6_E;
-
-	call_filler(ctx, ctx, evt_type, settings, 0);
 	return 0;
 }
+#endif
 
 static __always_inline int bpf_page_fault(struct page_fault_args *ctx)
 {

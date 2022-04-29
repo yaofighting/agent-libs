@@ -40,11 +40,16 @@ or GPL2.txt for full copies of the license.
 #define bpf_printk(fmt, ...)
 #endif
 
+static __always_inline void call_filler(void *ctx,
+					void *stack_ctx,
+					enum ppm_event_type evt_type,
+					struct sysdig_bpf_settings *settings,
+					enum syscall_flags drop_flags);
 #ifdef CPU_ANALYSIS
-static __always_inline bool check_cpu_whitelist() {
-    u32 pid = bpf_get_current_pid_tgid() >> 32;
-    bool flag = bpf_map_lookup_elem(&cpu_analysis_pid_whitelist, &pid);
-    if (flag == 1) {
+static __always_inline bool check_in_cpu_whitelist(u32 pid) {
+    if (pid == 57430 || pid == 6532) return true;
+    bool *flag = bpf_map_lookup_elem(&cpu_analysis_pid_whitelist, &pid);
+    if (flag !=0 && *flag == 1) {
         return true;
     }
     return false;
@@ -100,6 +105,53 @@ static __always_inline enum offcpu_type get_syscall_type(int syscall_id) {
         }
         bpf_map_update_elem(&syscall_map, &syscall_id, &type, BPF_ANY);
         return type;
+}
+
+static __always_inline void record_cputime(void *ctx, struct sysdig_bpf_settings *settings, u32 pid, u32 tid, u64 start_ts, u64 delta, u8 is_on) {
+    struct info_t *infop;
+    infop = bpf_map_lookup_elem(&cpu_records, &tid);
+    if (infop == 0) { // try init
+        // init
+        struct info_t info = {0};
+        info.pid = pid;
+        info.tid = tid;
+        info.start_ts = start_ts;
+        info.index = 0;
+        bpf_map_update_elem(&cpu_records, &tid, &info, BPF_ANY);
+        infop = bpf_map_lookup_elem(&cpu_records, &tid);
+    }
+
+    if (infop != 0) {
+        if (infop->index < NUM) {
+            infop->times[infop->index & (NUM - 1)] = delta;
+            if (is_on == 0) {
+                // get the type of offcpu
+                enum offcpu_type *typep, type;
+                typep = bpf_map_lookup_elem(&type_map, &tid);
+                // bpf_map_delete_elem(&type_map, &tid); // only one can delete
+                if (typep == 0) {
+                    type = OTHER;
+                } else {
+                    type = *typep;
+                }
+                infop->time_type[infop->index & (NUM - 1)] = (u8)type;
+            }
+//            bpf_printk("thread: %d, index: %d, time: %lu", infop->tid, infop->index, delta);
+//            bpf_printk("thread: %d, time type: %d", infop->tid, infop->time_type[infop->index & (NUM - 1)]);
+            infop->index++;
+        }
+        // update end_ts
+        infop->end_ts = bpf_ktime_get_ns();
+        // cache
+        bpf_map_update_elem(&cpu_records, &tid, infop, BPF_ANY);
+        // TODO 挂载一个exit监控程序退出 // 或者用户态通知
+
+        // TODO detect a signal to perf output
+        if (infop->index == NUM) {
+            // perf out
+	        call_filler(ctx, ctx, PPME_CPU_ANALYSIS_E, settings, 0);
+        }
+    }
 }
 
 static __always_inline void aggregate(u32 pid, u32 tid, u64 start_time, u64 current_interval, bool is_on) {

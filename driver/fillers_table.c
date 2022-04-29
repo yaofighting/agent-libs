@@ -311,6 +311,7 @@ const struct ppm_event_entry g_ppm_events[PPM_EVENT_MAX] = {
 	[PPME_NET_DEV_XMIT_E] = {FILLER_REF(net_dev_start_xmit_e)},
 	[PPME_TCP_RCV_ESTABLISHED_E] = {FILLER_REF(tcp_rcv_established_e)},
 	[PPME_TCP_DROP_E] = {FILLER_REF(tcp_drop_e)},
-	[PPME_TCP_RETRANCESMIT_SKB_E] = {FILLER_REF(tcp_retransmit_skb_e)}
+	[PPME_TCP_RETRANCESMIT_SKB_E] = {FILLER_REF(tcp_retransmit_skb_e)},
+	[PPME_CPU_ANALYSIS_E] = {FILLER_REF(cpu_analysis_e)}
 #endif /* WDIG */
 };
