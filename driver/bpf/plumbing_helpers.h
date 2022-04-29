@@ -115,7 +115,7 @@ static __always_inline void record_cputime(void *ctx, struct sysdig_bpf_settings
         struct info_t info = {0};
         info.pid = pid;
         info.tid = tid;
-        info.start_ts = start_ts;
+        info.start_ts = settings->boot_time + start_ts;
         info.index = 0;
         bpf_map_update_elem(&cpu_records, &tid, &info, BPF_ANY);
         infop = bpf_map_lookup_elem(&cpu_records, &tid);
@@ -141,7 +141,7 @@ static __always_inline void record_cputime(void *ctx, struct sysdig_bpf_settings
             infop->index++;
         }
         // update end_ts
-        infop->end_ts = bpf_ktime_get_ns();
+        infop->end_ts = settings->boot_time + bpf_ktime_get_ns();
         // cache
         bpf_map_update_elem(&cpu_records, &tid, infop, BPF_ANY);
         // TODO 挂载一个exit监控程序退出 // 或者用户态通知
