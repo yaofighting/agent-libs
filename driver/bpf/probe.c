@@ -197,7 +197,7 @@ BPF_PROBE("sched/", sched_switch, sched_switch_args)
 	if (!settings->capture_enabled)
 		return 0;
 
-#define FILTER 1
+#define FILTER (tid != 0)
 #define MINBLOCK_US 1
 #define MAXBLOCK_US ((1UL << 48) - 1)
 	struct task_struct *p = (struct task_struct *) ctx->prev;

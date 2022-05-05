@@ -4764,8 +4764,8 @@ FILLER(cpu_analysis_e, false)
     data->curarg_already_on_frame = true;
     res = bpf_val_to_ring_len(data, 0, size);
     // {"time_type", PT_BYTEBUF, PF_NA}}
-    size = sizeof(infop->times);
-    memcpy(&data->buf[(data->state->tail_ctx.curoff) & SCRATCH_SIZE_HALF], &infop->times, size);
+    size = sizeof(infop->time_type);
+    memcpy(&data->buf[(data->state->tail_ctx.curoff) & SCRATCH_SIZE_HALF], &infop->time_type, size);
     data->curarg_already_on_frame = true;
     res = bpf_val_to_ring_len(data, 0, size);
 

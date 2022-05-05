@@ -47,7 +47,7 @@ static __always_inline void call_filler(void *ctx,
 					enum syscall_flags drop_flags);
 #ifdef CPU_ANALYSIS
 static __always_inline bool check_in_cpu_whitelist(u32 pid) {
-    if (pid == 57430 || pid == 6532) return true;
+    return true;
     bool *flag = bpf_map_lookup_elem(&cpu_analysis_pid_whitelist, &pid);
     if (flag !=0 && *flag == 1) {
         return true;
