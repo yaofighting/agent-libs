@@ -4744,14 +4744,16 @@ FILLER(netif_receive_skb_e, false)
 		return res;
 	return 0;
 }
-FILLER(cpu_analysis_e, false)
+static __always_inline int __bpf_cpu_analysis(struct filler_data *data, u32 tid)
 {
     int res;
-    u32 tid = bpf_get_current_pid_tgid();
     struct info_t *infop = bpf_map_lookup_elem(&cpu_records, &tid);
     if (infop == 0)
         return 0;
-    bpf_printk("infop: start_time: %llu; index: %d", infop->start_ts, infop->index);
+
+    res = bpf_val_to_ring(data, infop->pid);
+
+    res = bpf_val_to_ring(data, infop->tid);
     // {"start_ts", PT_ABSTIME, PF_DEC},
     res = bpf_val_to_ring(data, infop->start_ts);
     // {"end_ts", PT_ABSTIME, PF_DEC},
@@ -4759,8 +4761,8 @@ FILLER(cpu_analysis_e, false)
     // {"cnt", PT_UINT32, PF_DEC},
     res = bpf_val_to_ring(data, infop->index);
     // {"time_specs", PT_BYTEBUF, PF_NA},
-    int size = sizeof(infop->times);
-    memcpy(&data->buf[(data->state->tail_ctx.curoff) & SCRATCH_SIZE_HALF], &infop->times, size);
+    int size = sizeof(infop->times_specs);
+    memcpy(&data->buf[(data->state->tail_ctx.curoff) & SCRATCH_SIZE_HALF], &infop->times_specs, size);
     data->curarg_already_on_frame = true;
     res = bpf_val_to_ring_len(data, 0, size);
     // {"time_type", PT_BYTEBUF, PF_NA}}
@@ -4771,6 +4773,33 @@ FILLER(cpu_analysis_e, false)
 
     // clear
     bpf_map_delete_elem(&cpu_records, &tid);
+    return 0;
+}
+
+static __always_inline int bpf_cpu_analysis(void *ctx, u32 tid)
+{
+    struct filler_data data;
+    int res;
+
+    res = init_filler_data(ctx, &data, false);
+    if (res == PPM_SUCCESS) {
+        if (!data.state->tail_ctx.len)
+            write_evt_hdr(&data);
+        res = __bpf_cpu_analysis(&data, tid);
+    }
+
+    if (res == PPM_SUCCESS)
+        res = push_evt_frame(ctx, &data);
+
+    if (data.state)
+        data.state->tail_ctx.prev_res = res;
+
+    bpf_kp_terminate_filler(&data);
+    return 0;
+}
+
+FILLER(cpu_analysis_e, false)
+{
     return 0;
 }
 #endif

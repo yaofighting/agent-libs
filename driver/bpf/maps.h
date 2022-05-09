@@ -119,12 +119,11 @@ enum offcpu_type {
 struct info_t {
     u32 pid;
     u32 tid;
-    char comm[TASK_COMM_LEN];
-    u32 index;
-    u64 times[NUM];
-    u8 time_type[NUM];
     u64 start_ts;
     u64 end_ts;
+    u32 index;
+    u64 times_specs[NUM];
+    u8 time_type[NUM];
 };
 
 #define TYPE_NUM 8

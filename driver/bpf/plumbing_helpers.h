@@ -45,6 +45,12 @@ static __always_inline void call_filler(void *ctx,
 					enum ppm_event_type evt_type,
 					struct sysdig_bpf_settings *settings,
 					enum syscall_flags drop_flags);
+static __always_inline bool prepare_filler(void *ctx,
+					   void *stack_ctx,
+					   enum ppm_event_type evt_type,
+					   struct sysdig_bpf_settings *settings,
+					   enum syscall_flags drop_flags);
+static __always_inline int bpf_cpu_analysis(void *ctx, u32 tid);
 #ifdef CPU_ANALYSIS
 static __always_inline bool check_in_cpu_whitelist(u32 pid) {
     return true;
@@ -123,7 +129,7 @@ static __always_inline void record_cputime(void *ctx, struct sysdig_bpf_settings
 
     if (infop != 0) {
         if (infop->index < NUM) {
-            infop->times[infop->index & (NUM - 1)] = delta;
+            infop->times_specs[infop->index & (NUM - 1)] = delta;
             if (is_on == 0) {
                 // get the type of offcpu
                 enum offcpu_type *typep, type;
@@ -136,8 +142,7 @@ static __always_inline void record_cputime(void *ctx, struct sysdig_bpf_settings
                 }
                 infop->time_type[infop->index & (NUM - 1)] = (u8)type;
             }
-//            bpf_printk("thread: %d, index: %d, time: %lu", infop->tid, infop->index, delta);
-//            bpf_printk("thread: %d, time type: %d", infop->tid, infop->time_type[infop->index & (NUM - 1)]);
+//            bpf_printk("thread: %d, index: %d, type: %d", infop->tid, infop->index, infop->time_type[infop->index & (NUM - 1)]);
             infop->index++;
         }
         // update end_ts
@@ -149,7 +154,11 @@ static __always_inline void record_cputime(void *ctx, struct sysdig_bpf_settings
         // TODO detect a signal to perf output
         if (infop->index == NUM) {
             // perf out
-	        call_filler(ctx, ctx, PPME_CPU_ANALYSIS_E, settings, 0);
+            u32 tt = bpf_get_current_pid_tgid();
+            bpf_printk("expected thread: %d, exact thread: %d", infop->tid, tt);
+            if(prepare_filler(ctx, ctx, PPME_CPU_ANALYSIS_E, settings, 0)) {
+                bpf_cpu_analysis(ctx, infop->tid);
+            }
         }
     }
 }
