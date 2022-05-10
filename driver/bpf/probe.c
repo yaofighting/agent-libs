@@ -221,8 +221,8 @@ BPF_PROBE("sched/", sched_switch, sched_switch_args)
             bpf_map_delete_elem(&on_start_ts, &tid);
             if ((delta >= MINBLOCK_US) && (delta <= MAXBLOCK_US)) {
                 if (check_in_cpu_whitelist(pid)) {
-                    record_cputime(ctx, settings, pid, tid, *on_ts, delta, 1);
-                    aggregate(pid, tid, *on_ts, delta, 1);
+                    record_cputime_and_out(ctx, settings, pid, tid, *on_ts, delta, 1);
+                     aggregate(pid, tid, *on_ts, delta, 1);
                 }
             }
         }
@@ -248,7 +248,7 @@ BPF_PROBE("sched/", sched_switch, sched_switch_args)
         if ((delta >= MINBLOCK_US) && (delta <= MAXBLOCK_US)) {
             if (check_in_cpu_whitelist(pid)) {
                 record_cputime(ctx, settings, pid, tid, off_ts, delta, 0);
-                aggregate(pid, tid, off_ts, delta, 0);
+                 aggregate(pid, tid, off_ts, delta, 0);
             }
         }
     }

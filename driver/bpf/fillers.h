@@ -4771,8 +4771,6 @@ static __always_inline int __bpf_cpu_analysis(struct filler_data *data, u32 tid)
     data->curarg_already_on_frame = true;
     res = bpf_val_to_ring_len(data, 0, size);
 
-    // clear
-    bpf_map_delete_elem(&cpu_records, &tid);
     return 0;
 }
 

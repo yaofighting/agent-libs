@@ -142,6 +142,53 @@ static __always_inline void record_cputime(void *ctx, struct sysdig_bpf_settings
                 }
                 infop->time_type[infop->index & (NUM - 1)] = (u8)type;
             }
+            infop->index++;
+        }
+        // update end_ts
+        infop->end_ts = settings->boot_time + bpf_ktime_get_ns();
+        // cache
+        bpf_map_update_elem(&cpu_records, &tid, infop, BPF_ANY);
+    }
+}
+
+static __always_inline void record_cputime_and_out(void *ctx, struct sysdig_bpf_settings *settings, u32 pid, u32 tid, u64 start_ts, u64 delta, u8 is_on) {
+    struct info_t *infop;
+    infop = bpf_map_lookup_elem(&cpu_records, &tid);
+    if (infop == 0) { // try init
+        // init
+        struct info_t info = {0};
+        info.pid = pid;
+        info.tid = tid;
+        info.start_ts = settings->boot_time + start_ts;
+        info.index = 0;
+        bpf_map_update_elem(&cpu_records, &tid, &info, BPF_ANY);
+        infop = bpf_map_lookup_elem(&cpu_records, &tid);
+    }
+
+    if (infop != 0) {
+        if (infop->index == NUM) {
+            // perf out
+            if (prepare_filler(ctx, ctx, PPME_CPU_ANALYSIS_E, settings, 0)) {
+                bpf_cpu_analysis(ctx, infop->tid);
+            }
+            // clear
+            infop->start_ts = settings->boot_time + start_ts;
+            infop->index = 0;
+        }
+        if (infop->index < NUM) {
+            infop->times_specs[infop->index & (NUM - 1)] = delta;
+            if (is_on == 0) {
+                // get the type of offcpu
+                enum offcpu_type *typep, type;
+                typep = bpf_map_lookup_elem(&type_map, &tid);
+                // bpf_map_delete_elem(&type_map, &tid); // only one can delete
+                if (typep == 0) {
+                    type = OTHER;
+                } else {
+                    type = *typep;
+                }
+                infop->time_type[infop->index & (NUM - 1)] = (u8)type;
+            }
 //            bpf_printk("thread: %d, index: %d, type: %d", infop->tid, infop->index, infop->time_type[infop->index & (NUM - 1)]);
             infop->index++;
         }
@@ -149,17 +196,6 @@ static __always_inline void record_cputime(void *ctx, struct sysdig_bpf_settings
         infop->end_ts = settings->boot_time + bpf_ktime_get_ns();
         // cache
         bpf_map_update_elem(&cpu_records, &tid, infop, BPF_ANY);
-        // TODO 挂载一个exit监控程序退出 // 或者用户态通知
-
-        // TODO detect a signal to perf output
-        if (infop->index == NUM) {
-            // perf out
-            u32 tt = bpf_get_current_pid_tgid();
-            bpf_printk("expected thread: %d, exact thread: %d", infop->tid, tt);
-            if(prepare_filler(ctx, ctx, PPME_CPU_ANALYSIS_E, settings, 0)) {
-                bpf_cpu_analysis(ctx, infop->tid);
-            }
-        }
     }
 }
 
