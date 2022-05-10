@@ -174,6 +174,8 @@ static __always_inline void record_cputime_and_out(void *ctx, struct sysdig_bpf_
             // clear
             infop->start_ts = settings->boot_time + start_ts;
             infop->index = 0;
+            memset(infop->time_type, 0, sizeof(infop->time_type));
+            memset(infop->times_specs, 0, sizeof(infop->times_specs));
         }
         if (infop->index < NUM) {
             infop->times_specs[infop->index & (NUM - 1)] = delta;
