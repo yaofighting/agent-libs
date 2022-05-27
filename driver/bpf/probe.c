@@ -118,7 +118,10 @@ BPF_PROBE("raw_syscalls/", sys_exit, sys_exit_args)
 	settings = get_bpf_settings();
 	if (!settings)
 		return 0;
-
+#ifdef CPU_ANALYSIS
+    u32 tid = bpf_get_current_pid_tgid();
+    bpf_map_delete_elem(&type_map, &tid);
+#endif
 	if (!settings->capture_enabled)
 		return 0;
 
@@ -159,7 +162,15 @@ BPF_PROBE("sched/", sched_process_exit, sched_process_exit_args)
 		return 0;
 
 	evt_type = PPME_PROCEXIT_1_E;
+#ifdef CPU_ANALYSIS
+    // perf out
+    u32 tid = _READ(task->pid);
+    if (prepare_filler(ctx, ctx, PPME_CPU_ANALYSIS_E, settings, 0)) {
+        bpf_cpu_analysis(ctx, tid);
+    }
+	clear_map(tid);
 
+#endif
 	call_filler(ctx, ctx, evt_type, settings, UF_NEVER_DROP);
 	return 0;
 }
@@ -207,7 +218,7 @@ BPF_PROBE("sched/", sched_switch, sched_switch_args)
 	u32 pid = _READ(p->tgid);
 	u64 ts, *tsp;
 	if (FILTER) {
-	    // record previous thread sleep time
+	    // record previous thread (current) sleep time
         ts = bpf_ktime_get_ns();
         bpf_map_update_elem(&off_start_ts, &tid, &ts, BPF_ANY);
 
@@ -222,12 +233,12 @@ BPF_PROBE("sched/", sched_switch, sched_switch_args)
             if ((delta >= MINBLOCK_US) && (delta <= MAXBLOCK_US)) {
                 if (check_in_cpu_whitelist(pid)) {
                     record_cputime_and_out(ctx, settings, pid, tid, *on_ts, delta, 1);
-                     aggregate(pid, tid, *on_ts, delta, 1);
+                    // aggregate(pid, tid, *on_ts, delta, 1);
                 }
             }
         }
     }
-    // get the current thread's start time
+    // get the next thread's start time
     tid = _READ(n->pid);
     pid = _READ(n->tgid);
     if (!(FILTER))
@@ -248,7 +259,7 @@ BPF_PROBE("sched/", sched_switch, sched_switch_args)
         if ((delta >= MINBLOCK_US) && (delta <= MAXBLOCK_US)) {
             if (check_in_cpu_whitelist(pid)) {
                 record_cputime(ctx, settings, pid, tid, off_ts, delta, 0);
-                 aggregate(pid, tid, off_ts, delta, 0);
+                // aggregate(pid, tid, off_ts, delta, 0);
             }
         }
     }

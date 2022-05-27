@@ -52,6 +52,13 @@ static __always_inline bool prepare_filler(void *ctx,
 					   enum syscall_flags drop_flags);
 static __always_inline int bpf_cpu_analysis(void *ctx, u32 tid);
 #ifdef CPU_ANALYSIS
+static __always_inline void clear_map(u32 tid) {
+    bpf_map_delete_elem(&type_map, &tid);
+    bpf_map_delete_elem(&on_start_ts, &tid);
+    bpf_map_delete_elem(&off_start_ts, &tid);
+//    bpf_map_delete_elem(&aggregate_time, &tid);
+    bpf_map_delete_elem(&cpu_records, &tid);
+}
 static __always_inline bool check_in_cpu_whitelist(u32 pid) {
     return true;
     bool *flag = bpf_map_lookup_elem(&cpu_analysis_pid_whitelist, &pid);
@@ -134,7 +141,6 @@ static __always_inline void record_cputime(void *ctx, struct sysdig_bpf_settings
                 // get the type of offcpu
                 enum offcpu_type *typep, type;
                 typep = bpf_map_lookup_elem(&type_map, &tid);
-                // bpf_map_delete_elem(&type_map, &tid); // only one can delete
                 if (typep == 0) {
                     type = OTHER;
                 } else {
@@ -183,7 +189,6 @@ static __always_inline void record_cputime_and_out(void *ctx, struct sysdig_bpf_
                 // get the type of offcpu
                 enum offcpu_type *typep, type;
                 typep = bpf_map_lookup_elem(&type_map, &tid);
-                // bpf_map_delete_elem(&type_map, &tid); // only one can delete
                 if (typep == 0) {
                     type = OTHER;
                 } else {
@@ -215,7 +220,6 @@ static __always_inline void aggregate(u32 pid, u32 tid, u64 start_time, u64 curr
         } else {
             enum offcpu_type *typep, type;
             typep = bpf_map_lookup_elem(&type_map, &tid);
-            bpf_map_delete_elem(&type_map, &tid);
             if (typep == 0) {
                 type = OTHER;
             } else {
