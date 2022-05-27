@@ -4751,9 +4751,6 @@ static __always_inline int __bpf_cpu_analysis(struct filler_data *data, u32 tid)
     if (infop == 0)
         return 0;
 
-    res = bpf_val_to_ring(data, infop->pid);
-
-    res = bpf_val_to_ring(data, infop->tid);
     // {"start_ts", PT_ABSTIME, PF_DEC},
     res = bpf_val_to_ring(data, infop->start_ts);
     // {"end_ts", PT_ABSTIME, PF_DEC},
@@ -4763,6 +4760,11 @@ static __always_inline int __bpf_cpu_analysis(struct filler_data *data, u32 tid)
     // {"time_specs", PT_BYTEBUF, PF_NA},
     int size = sizeof(infop->times_specs);
     memcpy(&data->buf[(data->state->tail_ctx.curoff) & SCRATCH_SIZE_HALF], &infop->times_specs, size);
+    data->curarg_already_on_frame = true;
+    res = bpf_val_to_ring_len(data, 0, size);
+    // {"runq_latency", PT_BYTEBUF, PF_NA},
+    size = sizeof(infop->rq);
+    memcpy(&data->buf[(data->state->tail_ctx.curoff) & SCRATCH_SIZE_HALF], &infop->rq, size);
     data->curarg_already_on_frame = true;
     res = bpf_val_to_ring_len(data, 0, size);
     // {"time_type", PT_BYTEBUF, PF_NA}}

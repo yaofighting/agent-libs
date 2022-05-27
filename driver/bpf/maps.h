@@ -116,6 +116,7 @@ enum offcpu_type {
 };
 
 #define NUM 16
+#define HALF_NUM (NUM >> 1)
 struct info_t {
     u32 pid;
     u32 tid;
@@ -123,6 +124,7 @@ struct info_t {
     u64 end_ts;
     u32 index;
     u64 times_specs[NUM];
+    u64 rq[HALF_NUM];
     u8 time_type[NUM];
 };
 
@@ -147,6 +149,13 @@ struct bpf_map_def __bpf_section("maps") on_start_ts = {
 };
 
 struct bpf_map_def __bpf_section("maps") off_start_ts = {
+        .type = BPF_MAP_TYPE_HASH,
+        .key_size = sizeof(u32),
+        .value_size = sizeof(u64),
+        .max_entries = 65535,
+};
+
+struct bpf_map_def __bpf_section("maps") cpu_runq = {
         .type = BPF_MAP_TYPE_HASH,
         .key_size = sizeof(u32),
         .value_size = sizeof(u64),
