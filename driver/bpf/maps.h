@@ -190,6 +190,13 @@ struct bpf_map_def __bpf_section("maps") cpu_analysis_pid_whitelist = {
         .max_entries = 1000,
 };
 
+struct bpf_map_def __bpf_section("maps") cpu_analysis_pid_blacklist = {
+        .type = BPF_MAP_TYPE_HASH,
+        .key_size = sizeof(u32),
+        .value_size = sizeof(bool),
+        .max_entries = 1000,
+};
+
 struct bpf_map_def __bpf_section("maps") cpu_records = {
         .type = BPF_MAP_TYPE_HASH,
         .key_size = sizeof(u32),

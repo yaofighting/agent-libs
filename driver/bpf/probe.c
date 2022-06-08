@@ -261,7 +261,7 @@ BPF_PROBE("sched/", sched_switch, sched_switch_args)
         u64 delta = on_ts - off_ts;
         delta = delta / 1000;
         if ((delta >= MINBLOCK_US) && (delta <= MAXBLOCK_US)) {
-            if (check_in_cpu_whitelist(pid)) {
+            if (check_filter(pid)) {
                 u64 *rq_ts = bpf_map_lookup_elem(&cpu_runq, &tid);
                 u64 rq_la = 0;
                 if (rq_ts != 0) {

@@ -59,10 +59,14 @@ static __always_inline void clear_map(u32 tid) {
 //    bpf_map_delete_elem(&aggregate_time, &tid);
     bpf_map_delete_elem(&cpu_records, &tid);
 }
-static __always_inline bool check_in_cpu_whitelist(u32 pid) {
+static __always_inline bool check_filter(u32 pid) {
     return true;
-    bool *flag = bpf_map_lookup_elem(&cpu_analysis_pid_whitelist, &pid);
-    if (flag !=0 && *flag == 1) {
+    bool *flag = bpf_map_lookup_elem(&cpu_analysis_pid_blacklist, &pid);
+    if (flag != 0 && *flag == 1) {
+        return false;
+    }
+    flag = bpf_map_lookup_elem(&cpu_analysis_pid_whitelist, &pid);
+    if (flag != 0 && *flag == 1) {
         return true;
     }
     return false;
