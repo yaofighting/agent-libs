@@ -344,7 +344,85 @@ FILLER(sys_write_x, true)
 
 	return res;
 }
+#define EPOLL_MAXFDS 16
+static __always_inline int bpf_epoll_parse_fds(struct filler_data *data)
+{
+    unsigned long ret = bpf_syscall_get_retval(data->ctx);
+    unsigned int size = ret * sizeof(struct epoll_event);
+    if (size > SCRATCH_SIZE_MAX)
+		return PPM_FAILURE_BUFFER_FULL;
+    struct epoll_event *events = (struct epoll_event*) data->tmp_scratch;
+    unsigned long val = bpf_syscall_get_argument(data, 1);
 
+#ifdef BPF_FORBIDS_ZERO_ACCESS
+	if (size)
+		if (bpf_probe_read(events,
+				   ((size - 1) & SCRATCH_SIZE_MAX) + 1,
+				   (void *)val))
+#else
+	if (bpf_probe_read(events, size & SCRATCH_SIZE_MAX, (void *)val))
+#endif
+		return PPM_FAILURE_INVALID_USER_MEMORY;
+
+	if (data->state->tail_ctx.curoff > SCRATCH_SIZE_HALF)
+		return PPM_FAILURE_BUFFER_FULL;
+#if 1
+/*
+ * SYSDIG -- generate code which satisfies kernel verifier on ARM
+ * - Declare parameter as volatile to force re-evaluation
+ */
+	volatile unsigned long off;
+#else /* SYSDIG */
+	unsigned long off;
+#endif /* SYSDIG */
+
+    int j;
+	off = data->state->tail_ctx.curoff + sizeof(u16);
+	unsigned int fds_count = 0;
+
+	#pragma unroll
+	for (j = 0; j < EPOLL_MAXFDS; ++j) {
+		if (off > SCRATCH_SIZE_HALF)
+			return PPM_FAILURE_BUFFER_FULL;
+
+		if (j == ret)
+			break;
+
+		u16 flags = epoll_events_to_scap(events[j].events);
+		*(s64 *)&data->buf[off & SCRATCH_SIZE_HALF] = (int)events[j].data;
+		off += sizeof(s64);
+		if (off > SCRATCH_SIZE_HALF)
+			return PPM_FAILURE_BUFFER_FULL;
+
+		*(s16 *)&data->buf[off & SCRATCH_SIZE_HALF] = flags;
+		off += sizeof(s16);
+		++fds_count;
+	}
+
+	*((u16 *)&data->buf[data->state->tail_ctx.curoff & SCRATCH_SIZE_HALF]) = fds_count;
+	data->curarg_already_on_frame = true;
+	return __bpf_val_to_ring(data, 0, off - data->state->tail_ctx.curoff, PT_FDLIST, -1, false);
+}
+FILLER(sys_epoll_wait_x, true)
+{
+    long retval;
+	int res;
+
+	/*
+	 * res
+	 */
+	retval = bpf_syscall_get_retval(data->ctx);
+	res = bpf_val_to_ring_type(data, retval, PT_ERRNO);
+	if (res != PPM_SUCCESS)
+		return res;
+
+	/*
+	 * fds
+	 */
+	res = bpf_epoll_parse_fds(data);
+
+	return res;
+}
 #define POLL_MAXFDS 16
 
 static __always_inline int bpf_poll_parse_fds(struct filler_data *data,

@@ -89,7 +89,7 @@ const struct ppm_event_info g_event_info[PPM_EVENT_MAX] = {
 	/* PPME_SYSCALL_FSTAT64_E */{"fstat64", EC_FILE, EF_USES_FD | EF_DROP_SIMPLE_CONS, 1, {{"fd", PT_FD, PF_NA} } },
 	/* PPME_SYSCALL_FSTAT64_X */{"fstat64", EC_FILE, EF_USES_FD | EF_DROP_SIMPLE_CONS, 1, {{"res", PT_ERRNO, PF_DEC} } },
 	/* PPME_SYSCALL_EPOLLWAIT_E */{"epoll_wait", EC_WAIT, EF_WAITS | EF_DROP_SIMPLE_CONS, 1, {{"maxevents", PT_ERRNO, PF_DEC} } },
-	/* PPME_SYSCALL_EPOLLWAIT_X */{"epoll_wait", EC_WAIT, EF_WAITS | EF_DROP_SIMPLE_CONS, 1, {{"res", PT_ERRNO, PF_DEC} } },
+	/* PPME_SYSCALL_EPOLLWAIT_X */{"epoll_wait", EC_WAIT, EF_WAITS | EF_DROP_SIMPLE_CONS, 2, {{"res", PT_ERRNO, PF_DEC} , {"fds", PT_FDLIST, PF_DEC} } },
 	/* PPME_SYSCALL_POLL_E */{"poll", EC_WAIT, EF_WAITS | EF_DROP_SIMPLE_CONS, 2, {{"fds", PT_FDLIST, PF_DEC}, {"timeout", PT_INT64, PF_DEC} } },
 	/* PPME_SYSCALL_POLL_X */{"poll", EC_WAIT, EF_WAITS | EF_DROP_SIMPLE_CONS, 2, {{"res", PT_ERRNO, PF_DEC}, {"fds", PT_FDLIST, PF_DEC} } },
 	/* PPME_SYSCALL_SELECT_E */{"select", EC_WAIT, EF_WAITS | EF_DROP_SIMPLE_CONS, 0},
