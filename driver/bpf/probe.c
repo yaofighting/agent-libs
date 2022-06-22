@@ -182,13 +182,12 @@ static __always_inline int bpf_page_fault(struct page_fault_args *ctx)
 {
 	struct sysdig_bpf_settings *settings;
 	enum ppm_event_type evt_type;
-
 	settings = get_bpf_settings();
 	if (!settings)
 		return 0;
 
-	if (!settings->page_faults)
-		return 0;
+	//if (!settings->page_faults)
+	//	return 0;
 
 	if (!settings->capture_enabled)
 		return 0;
