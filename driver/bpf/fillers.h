@@ -3903,8 +3903,6 @@ FILLER(sys_pagefault_e, false)
 	 */
 	res = bpf_val_to_ring_type(data, swap, PT_UINT32);
 
-	// if (res == PPM_SUCCESS)
-	// 	bpf_printk("make page fault successfully**\n");
 	return res;
 }
 

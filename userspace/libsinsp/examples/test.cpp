@@ -83,7 +83,7 @@ int main(int argc, char **argv)
 
     inspector.open();
     //inspector.enable_page_faults();
-    inspector.clear_eventmask();
+    //inspector.clear_eventmask();
     //inspector.set_eventmask(PPME_PAGE_FAULT_E);
     
 
@@ -167,15 +167,15 @@ int main(int argc, char **argv)
                 {
                     parent_pid = p_thr->m_pid;
                 }
-                if(ev->get_type() == PPME_PAGE_FAULT_E || ev->get_type() == PPME_PAGE_FAULT_X)
-                {
-                    for (auto i = 0; i < ev->get_num_params(); i++) {
-                        cout << ev->get_param_name(i) << ": ";
-                        cout << *((uint64_t *)ev->get_param(i)->m_val) << "  ";
-                    }
-                    cout << "ppid: " << parent_pid << "  " << "pid: " << thread->m_pid;
-                    cout << endl;
-                }
+                // if(ev->get_type() == PPME_PAGE_FAULT_E || ev->get_type() == PPME_PAGE_FAULT_X)
+                // {
+                //     for (auto i = 0; i < ev->get_num_params(); i++) {
+                //         cout << ev->get_param_name(i) << ": ";
+                //         cout << *((uint64_t *)ev->get_param(i)->m_val) << "  ";
+                //     }
+                //     cout << "ppid: " << parent_pid << "  " << "pid: " << thread->m_pid;
+                //     cout << endl;
+                // }
                 cout << "[PPID=" << parent_pid << "]:"
                           << "[PID=" << thread->m_pid << "]:"
                           << "[TYPE=" << get_event_type(ev->get_type()) << "]:"
