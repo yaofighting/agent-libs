@@ -186,14 +186,14 @@ static __always_inline int bpf_page_fault(struct page_fault_args *ctx)
 	if (!settings)
 		return 0;
 
-	//if (!settings->page_faults)
-	//	return 0;
+	if (!settings->page_faults)
+		return 0;
 
 	if (!settings->capture_enabled)
 		return 0;
 
 	evt_type = PPME_PAGE_FAULT_E;
-
+	
 	call_filler(ctx, ctx, evt_type, settings, UF_ALWAYS_DROP);
 	return 0;
 }
