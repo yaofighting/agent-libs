@@ -29,7 +29,7 @@ or GPL2.txt for full copies of the license.
             bpf_probe_read((void *)dst, size, (char *)ctx + __offset);		\
         } while (0);
 
-
+#define BPF_DEBUG
 #ifdef BPF_DEBUG
 #define bpf_printk(fmt, ...)					\
 	do {							\
@@ -177,7 +177,9 @@ static __always_inline void record_cputime_and_out(void *ctx, struct sysdig_bpf_
     }
 
     if (infop != 0) {
-        if (infop->index == NUM) {
+	int offset_ts = infop->end_ts - infop->start_ts;
+        if (infop->index > 0 && (infop->index == NUM || offset_ts > 2000000000)) {
+		//bpf_printk("start_ts %llu", infop->start_ts);
             // perf out
             if (prepare_filler(ctx, ctx, PPME_CPU_ANALYSIS_E, settings, 0)) {
                 bpf_cpu_analysis(ctx, infop->tid);

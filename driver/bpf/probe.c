@@ -213,7 +213,6 @@ BPF_PROBE("sched/", sched_switch, sched_switch_args)
 #define MAXBLOCK_US ((1UL << 48) - 1)
 	struct task_struct *p = (struct task_struct *) ctx->prev;
 	struct task_struct *n = (struct task_struct *) ctx->next;
-
 	u32 tid = _READ(p->pid);
 	u32 pid = _READ(p->tgid);
 	u64 ts, *tsp;
@@ -232,9 +231,9 @@ BPF_PROBE("sched/", sched_switch, sched_switch_args)
         on_ts = bpf_map_lookup_elem(&on_start_ts, &tid);
         if (on_ts != 0) {
             u64 delta = ts - *on_ts;
-            delta = delta / 1000; // convert to us
+            u64 delta_us = delta / 1000; // convert to us
             bpf_map_delete_elem(&on_start_ts, &tid);
-            if ((delta >= MINBLOCK_US) && (delta <= MAXBLOCK_US)) {
+            if ((delta_us >= MINBLOCK_US) && (delta_us <= MAXBLOCK_US)) {
                 if (check_filter(pid)) {
                     record_cputime_and_out(ctx, settings, pid, tid, *on_ts, delta, 1);
                     // aggregate(pid, tid, *on_ts, delta, 1);
@@ -259,8 +258,8 @@ BPF_PROBE("sched/", sched_switch, sched_switch_args)
         bpf_map_delete_elem(&off_start_ts, &tid);
         // calculate current thread's off delta time
         u64 delta = on_ts - off_ts;
-        delta = delta / 1000;
-        if ((delta >= MINBLOCK_US) && (delta <= MAXBLOCK_US)) {
+        u64 delta_us = delta / 1000;
+        if ((delta_us >= MINBLOCK_US) && (delta_us <= MAXBLOCK_US)) {
             if (check_filter(pid)) {
                 u64 *rq_ts = bpf_map_lookup_elem(&cpu_runq, &tid);
                 u64 rq_la = 0;

@@ -73,7 +73,7 @@ struct bpf_map_def __bpf_section("maps") tmp_scratch_map = {
 	.type = BPF_MAP_TYPE_ARRAY,
 	.key_size = sizeof(u32),
 	.value_size = SCRATCH_SIZE,
-	.max_entries = 0,
+	.max_entries = 0,f
 };
 
 struct bpf_map_def __bpf_section("maps") settings_map = {
