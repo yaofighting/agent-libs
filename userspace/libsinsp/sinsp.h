@@ -980,6 +980,10 @@ private:
 
 	void remove_thread(int64_t tid, bool force);
 
+	bool sinsp::add_pid_vtid_info(uint64_t pid, uint64_t tid, uint64_t vtid);
+
+	uint64_t sinsp::get_pid_vtid_info(uint64_t pid, uint64_t vtid);
+
 	//
 	// Note: lookup_only should be used when the query for the thread is made
 	//       not as a consequence of an event for that thread arriving, but

@@ -727,6 +727,7 @@ scap_t* scap_open_offline_int(gzFile gzfile,
 	handle->m_udig = false;
 	handle->m_suppressed_comms = NULL;
 	handle->m_suppressed_tids = NULL;
+	handle->m_pid_vtid_info = NULL;
 
 	handle->m_file_evt_buf = (char*)malloc(FILE_READ_BUF_SIZE);
 	if(!handle->m_file_evt_buf)
@@ -2714,4 +2715,24 @@ int32_t scap_disable_skb_capture(scap_t *handle)
 		return SCAP_FAILURE;
 	}
 #endif
+}
+
+bool put_pid_vtid_map(scap_t *handle, uint64_t pid, uint64_t tid, uint64_t vtid){
+	if(vtid>=4096){
+		return false;
+	}
+	uint64_t *vtid_pid[4096];
+	HASH_FIND_INT64(handle->m_pid_vtid_info, pid, vtid_pid);
+	vtid_pid[vtid] = tid;
+	HASH_ADD_INT64(handle->m_pid_vtid_info, pid, vtid_pid);
+	return true;
+}
+
+uint64_t get_pid_vtid_map(scap_t *handle, uint64_t pid, uint64_t vtid){
+	if(vtid>=4096){
+		return false;
+	}
+	uint64_t *vtid_pid[4096];
+	HASH_FIND_INT64(handle->m_pid_vtid_info, pid, vtid_pid);
+	return vtid_pid[vtid];
 }

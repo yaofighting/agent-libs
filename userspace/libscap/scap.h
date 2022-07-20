@@ -60,10 +60,13 @@ struct iovec;
 #include "uthash.h"
 #include "../common/types.h"
 #include "../../driver/ppm_events_public.h"
+#include <map>
 #ifdef _WIN32
 #include <time.h>
 #define MAP_FAILED (void*)-1
 #endif
+
+map<uint64_t, int[1024]> pidVtidMap;
 
 //
 // Return types
@@ -222,6 +225,13 @@ typedef struct scap_fdinfo
 	}info;
 	UT_hash_handle hh; ///< makes this structure hashable
 }scap_fdinfo;
+
+typedef struct pid_vtid_info
+{
+	uint64_t pid; ///< The id of the process containing this thread. In single thread processes, this is equal to tid.
+	uint64_t vtid_tid[4096];
+	UT_hash_handle hh; ///< makes this structure hashable
+}pid_vtid_info;
 
 /*!
   \brief Process information
@@ -1104,6 +1114,8 @@ int32_t scap_set_fullcapture_port_range(scap_t* handle, uint16_t range_start, ui
  */
 int32_t scap_set_statsd_port(scap_t* handle, uint16_t port);
 
+bool put_pid_vtid_map(pidVtidMap pvm, uint64_t pid, uint64_t tid, uint64_t vtid);
+uint64_t get_pid_vtid_map(scap_t *handle, uint64_t pid, uint64_t vtid);
 #ifdef __cplusplus
 }
 #endif
