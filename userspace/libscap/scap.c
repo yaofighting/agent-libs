@@ -2721,18 +2721,32 @@ bool put_pid_vtid_map(scap_t *handle, uint64_t pid, uint64_t tid, uint64_t vtid)
 	if(vtid>=4096){
 		return false;
 	}
-	uint64_t *vtid_pid[4096];
-	HASH_FIND_INT64(handle->m_pid_vtid_info, pid, vtid_pid);
-	vtid_pid[vtid] = tid;
-	HASH_ADD_INT64(handle->m_pid_vtid_info, pid, vtid_pid);
+	int32_t uth_status = SCAP_SUCCESS;
+	pid_vtid_info *pvi;
+	HASH_FIND_INT64(handle->m_pid_vtid_info, &pid, pvi);
+	if(pvi==NULL){
+		pvi = (struct pid_vtid_info*)malloc(sizeof(pid_vtid_info));
+		pvi->pid = pid;
+	}
+	pvi->vtid_tid[vtid] = tid;
+	uth_status = SCAP_SUCCESS;
+	HASH_ADD_INT64(handle->m_pid_vtid_info, pid, pvi);
+	if(uth_status != SCAP_SUCCESS)
+	{
+	}
 	return true;
 }
 
 uint64_t get_pid_vtid_map(scap_t *handle, uint64_t pid, uint64_t vtid){
 	if(vtid>=4096){
-		return false;
+		return 0;
 	}
-	uint64_t *vtid_pid[4096];
-	HASH_FIND_INT64(handle->m_pid_vtid_info, pid, vtid_pid);
-	return vtid_pid[vtid];
+	int32_t uth_status = SCAP_SUCCESS;
+	pid_vtid_info *pvi;
+	HASH_FIND_INT64(handle->m_pid_vtid_info, &pid, pvi);
+	if(pvi!=NULL){
+		return pvi->vtid_tid[vtid];
+	}else{
+		return 0;
+	}
 }

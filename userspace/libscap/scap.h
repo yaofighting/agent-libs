@@ -60,13 +60,10 @@ struct iovec;
 #include "uthash.h"
 #include "../common/types.h"
 #include "../../driver/ppm_events_public.h"
-#include <map>
 #ifdef _WIN32
 #include <time.h>
 #define MAP_FAILED (void*)-1
 #endif
-
-map<uint64_t, int[1024]> pidVtidMap;
 
 //
 // Return types
