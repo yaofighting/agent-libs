@@ -1111,7 +1111,7 @@ int32_t scap_set_fullcapture_port_range(scap_t* handle, uint16_t range_start, ui
  */
 int32_t scap_set_statsd_port(scap_t* handle, uint16_t port);
 
-bool put_pid_vtid_map(pidVtidMap pvm, uint64_t pid, uint64_t tid, uint64_t vtid);
+bool put_pid_vtid_map(scap_t *handle, uint64_t pid, uint64_t tid, uint64_t vtid);
 uint64_t get_pid_vtid_map(scap_t *handle, uint64_t pid, uint64_t vtid);
 #ifdef __cplusplus
 }
