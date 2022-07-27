@@ -2727,13 +2727,15 @@ bool put_pid_vtid_map(scap_t *handle, uint64_t pid, uint64_t tid, uint64_t vtid)
 	if(pvi==NULL){
 		pvi = (struct pid_vtid_info*)malloc(sizeof(pid_vtid_info));
 		pvi->pid = pid;
+		pvi->vtid_tid[vtid] = tid;
+		uth_status = SCAP_SUCCESS;
+		HASH_ADD_INT64(handle->m_pid_vtid_info, pid, pvi);
+	}else {
+		pvi->vtid_tid[vtid] = tid;
 	}
-	pvi->vtid_tid[vtid] = tid;
-	uth_status = SCAP_SUCCESS;
-	HASH_ADD_INT64(handle->m_pid_vtid_info, pid, pvi);
-	if(uth_status != SCAP_SUCCESS)
-	{
-	}
+//	if(uth_status != SCAP_SUCCESS)
+//	{
+//	}
 	return true;
 }
 
