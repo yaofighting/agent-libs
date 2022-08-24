@@ -952,6 +952,8 @@ public:
 
 	uint64_t get_lastevent_ts() const { return m_lastevent_ts; }
 
+	uint64_t get_pid_vtid_info(uint64_t pid, uint64_t vtid);
+
 VISIBILITY_PROTECTED
 	bool add_thread(const sinsp_threadinfo *ptinfo);
 	void set_mode(scap_mode_t value)
@@ -982,7 +984,7 @@ private:
 
 	bool add_pid_vtid_info(uint64_t pid, uint64_t tid, uint64_t vtid);
 
-	uint64_t get_pid_vtid_info(uint64_t pid, uint64_t vtid);
+	//uint64_t get_pid_vtid_info(uint64_t pid, uint64_t vtid);
 
 
 	//
