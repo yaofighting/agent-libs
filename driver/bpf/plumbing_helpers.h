@@ -29,7 +29,7 @@ or GPL2.txt for full copies of the license.
             bpf_probe_read((void *)dst, size, (char *)ctx + __offset);		\
         } while (0);
 
-#define BPF_DEBUG
+// #define BPF_DEBUG
 #ifdef BPF_DEBUG
 #define bpf_printk(fmt, ...)					\
 	do {							\
