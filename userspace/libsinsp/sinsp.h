@@ -231,6 +231,10 @@ public:
 	void open(const std::string &filename);
 
 	bool add_pid_vtid_info(uint64_t pid, uint64_t tid, uint64_t vtid);
+
+	uint64_t get_pid_vtid_info(uint64_t pid, uint64_t vtid);
+
+
 	/*!
 	  \brief Start an event capture from a file descriptor.
 
@@ -981,7 +985,6 @@ private:
 
 	void remove_thread(int64_t tid, bool force);
 
-	uint64_t get_pid_vtid_info(uint64_t pid, uint64_t vtid);
 
 
 	//
