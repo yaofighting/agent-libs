@@ -119,7 +119,8 @@ enum offcpu_type {
     NET, // 2
     LOCK, // 3
     IDLE, // 4
-    OTHER
+    OTHER,
+    EPOLL
 };
 
 #define NUM 16
