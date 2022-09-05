@@ -29,7 +29,7 @@ or GPL2.txt for full copies of the license.
             bpf_probe_read((void *)dst, size, (char *)ctx + __offset);		\
         } while (0);
 
-// #define BPF_DEBUG
+//#define BPF_DEBUG
 #ifdef BPF_DEBUG
 #define bpf_printk(fmt, ...)					\
 	do {							\
@@ -106,16 +106,18 @@ static __always_inline enum offcpu_type get_syscall_type(int syscall_id) {
         case __NR_futex :
             type = LOCK;
             break;
-        case __NR_epoll_pwait :
-        case __NR_epoll_wait :
-        case __NR_poll :
-        case __NR_ppoll :
         case __NR_pselect6 :
         case __NR_select :
         case __NR_nanosleep :
         case __NR_io_getevents :
         // yield
             type = IDLE;
+            break;
+	case __NR_poll :
+	case __NR_ppoll :
+	case __NR_epoll_pwait :
+	case __NR_epoll_wait :
+            type = EPOLL;
             break;
         default:
             type = OTHER;
