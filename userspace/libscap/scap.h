@@ -225,8 +225,8 @@ typedef struct scap_fdinfo
 
 typedef struct pid_vtid_info
 {
-	uint64_t pid; ///< The id of the process containing this thread. In single thread processes, this is equal to tid.
-	uint64_t vtid_tid[4096];
+	uint64_t pid_vtid; ///< The id of the process containing this thread. In single thread processes, this is equal to tid.
+	uint64_t tid;
 	UT_hash_handle hh; ///< makes this structure hashable
 }pid_vtid_info;
 
