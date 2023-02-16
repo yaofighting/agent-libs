@@ -815,6 +815,18 @@ BPF_KPROBE(sock_sendmsg) {
 
 BPF_SOCKET_PROBE(tcp_analysis) 
 {
+	enum ppm_event_type evt_type = PPME_TCP_HANDSHAKE_E;
+
+	settings = get_bpf_settings();
+	if (!settings)
+		return 0;
+
+	if (!settings->capture_enabled)
+		return 0;
+
+	if (evt_type < PPM_EVENT_MAX && !settings->events_mask[evt_type]) {
+		return 0;
+	}
 	
 	struct bpf_flow_keys flow = {};
 

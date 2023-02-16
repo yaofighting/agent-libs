@@ -62,7 +62,7 @@ static __always_inline __u64 parse_ip(struct __sk_buff *skb, __u64 nhoff, __u64 
 {
 	__u64 verlen;
 
-	if(unlikely(ip_is_fragment(skb, nhoff))) //判断是否进行了ip分片
+	if(unlikely(ip_is_fragment(skb, nhoff))) 
 		*ip_proto = 0;
 	else
 		*ip_proto = load_byte(skb, nhoff + offsetof(struct iphdr, protocol));
@@ -79,7 +79,7 @@ static __always_inline __u64 parse_ip(struct __sk_buff *skb, __u64 nhoff, __u64 
 	else
 		nhoff += (verlen & 0xF) << 2;
 
-	return nhoff; //返回ip数据报报文内容的偏移位置
+	return nhoff; 
 }
 
 static __always_inline __u64 parse_ipv6(struct __sk_buff *skb, __u64 nhoff, __u64 *ip_proto,
@@ -111,7 +111,7 @@ static __always_inline void reverse_tuple(struct tcp_tuple *tp)
 static __always_inline struct tcp_tuple new_tuple(struct bpf_flow_keys *flow)
 {
 	struct tcp_tuple cur_tuple = {};
-	memset(&cur_tuple, 0, sizeof(cur_tuple)); //由于内存对齐的原因，最好使用memset初始化所有空间（防止编译器填充空间不确定引发bpf verifier error）
+	memset(&cur_tuple, 0, sizeof(cur_tuple)); //Because of memory alignment, it is best to initialize all spaces with memset (to prevent the compiler from causing bpf verifier error when the space is not filled)
 	cur_tuple.sport = flow->port16[1];
 	cur_tuple.dport = flow->port16[0];
 	cur_tuple.saddr = flow->src;
@@ -123,7 +123,7 @@ static __always_inline void init_buffer_pointer(u64 **head, u64 **tail, int head
 {
 	*head = bpf_map_lookup_elem(&tcp_buffer_pointer, &head_key);
 	*tail = bpf_map_lookup_elem(&tcp_buffer_pointer, &tail_key);
-	if(!(*head) || !(*tail)) //初始化buffer pointer
+	if(!(*head) || !(*tail)) //initialize the buffer pointer
 	{
 		u64 val = 0;
 		const char m[] = "init head and tail.\n";
@@ -155,24 +155,20 @@ static __always_inline void parse_tcp_handshake(struct sysdig_bpf_settings *sett
 		//第三次握手
 		if(s_rtt)
 		{
-			//s_rtt->synrtt = s_rtt->ackrtt - s_rtt->synrtt; //synrtt = 第二次握手时间戳-第一次握手时间戳
-			//s_rtt->ackrtt = cur_time - s_rtt->ackrtt;      //ackrtt = 第三次握手时间戳 - 第二次握手时间戳
 			const char log[] = "third: insert to handshake buffer: synrtt: %llu, ackrtt: %llu, timestamp: %llu\n";
 			bpf_trace_printk(log, sizeof(log), s_rtt->synrtt, s_rtt->ackrtt, cur_time);
 			u64 *tail = bpf_map_lookup_elem(&tcp_buffer_pointer, &tail_key);
 			if(tail)
 			{
-				//三次握手数据均已处理完成，清除map
-				// bpf_map_delete_elem(&tcp_handshake_map, &cur_tuple);
-				struct tcp_handshake_buffer_elem cur_elem = {}; //填充数据
+				struct tcp_handshake_buffer_elem cur_elem = {}; 
 				cur_elem.tp = cur_tuple;
-				cur_elem.synrtt = s_rtt->ackrtt - s_rtt->synrtt;
-				cur_elem.ackrtt = cur_time - s_rtt->ackrtt;
+				cur_elem.synrtt = s_rtt->ackrtt - s_rtt->synrtt; //synrtt = second - first
+				cur_elem.ackrtt = cur_time - s_rtt->ackrtt; // ackrtt = third - second
 				cur_elem.timestamp = cur_time;
-				//三次握手数据均已处理完成，清除map
+				//clear map
 				bpf_map_delete_elem(&tcp_handshake_map, &cur_tuple);
 				bpf_map_update_elem(&tcp_handshake_buffer, tail, &cur_elem, BPF_ANY);
-				__sync_fetch_and_add(tail, 1); //数据填充完成，tail++
+				__sync_fetch_and_add(tail, 1); //tail++
 			}
 			else
 			{
@@ -198,16 +194,16 @@ static __always_inline void parse_tcp_handshake(struct sysdig_bpf_settings *sett
 			bpf_trace_printk(tlog, sizeof(tlog), cur_time, cpu);
 		}
 		else
-		{ //第二次握手
+		{ 	//the second handshake
 			reverse_tuple(&cur_tuple);
 			struct tcp_handshake_rtt *f_rtt = bpf_map_lookup_elem(&tcp_handshake_map, &cur_tuple);
 			if(f_rtt)
 			{
-				f_rtt->ackrtt = cur_time; //更新为第二次握手时间
+				f_rtt->ackrtt = cur_time; //update to the second handshake timestamp
 				const char tlog[] = "second: cur_time: %llu, cpuid = %d\n";
 				bpf_trace_printk(tlog, sizeof(tlog), cur_time, cpu);
 			}
-			else //对于没匹配到第一次握手的数据包直接丢弃
+			else //only drop if not match
 			{
 				const char error[] = "handshake map error, the first handshake not found.\n";
 				bpf_trace_printk(error, sizeof(error));
@@ -251,7 +247,6 @@ static __always_inline void parse_tcp_datainfo(struct sysdig_bpf_settings *setti
 				int head_key = TCP_DATAINFO_BUFFER_HEAD, tail_key = TCP_DATAINFO_BUFFER_TAIL;
 				init_buffer_pointer(&head, &tail, head_key, tail_key);
 				struct tcp_datainfo info = {};
-				//memset(&info, 0, sizeof(info));
 				info.tp = cur_tuple;
 				info.seq = flow->seq;
 				info.ack_seq = flow->ack_seq;
@@ -260,12 +255,12 @@ static __always_inline void parse_tcp_datainfo(struct sysdig_bpf_settings *setti
 				if(tail)
 				{
 					bpf_map_update_elem(&tcp_datainfo_buffer, tail, &info, BPF_ANY);
-					__sync_fetch_and_add(tail, 1); //数据填充完成，tail++
+					__sync_fetch_and_add(tail, 1); 
 				}
 			}
 			else if(last_package && last_rcv_pkg && last_rcv_pkg->last_fin == 1 && last_package->last_fin == 1)
 			{
-				//遇到两个FIN标志，则清理map
+				//If two FIN flags are encountered, clean up the map
 				bpf_map_delete_elem(&tcp_datainfo_map, &cur_tuple);
 				reverse_tuple(&cur_tuple);
 				bpf_map_delete_elem(&tcp_datainfo_map, &cur_tuple);
@@ -295,18 +290,15 @@ static __always_inline __u64 parse_tcp(struct __sk_buff *skb, __u64 nhoff, __u64
 	{
 		nhoff += poff;
 		flow->ports = load_word(skb, nhoff);
-		//__u8 tmp = load_byte(skb, nhoff);
-		//const char tmp_fmt[] = "testBigLittleEndian: %d --- %d\n";
-		//bpf_trace_printk(tmp_fmt, sizeof(tmp_fmt), (__u8)(flow->ports), tmp);
 	}
 
 	struct sysdig_bpf_settings *settings = get_bpf_settings();
 	if (!settings || !settings->capture_enabled)
 		return nhoff;
 
-	parse_tcp_handshake(settings, flow); //处理握手包信息
+	parse_tcp_handshake(settings, flow); 
 
-	//parse_tcp_datainfo(settings, flow); //处理tcp其他信息
+	//parse_tcp_datainfo(settings, flow); 
 
 	// const char fmt_str[] = "src: %d, srcport: %d, dst: %d";
 	// bpf_trace_printk(fmt_str, sizeof(fmt_str), flow->src, flow->port16[1], flow->dst);
@@ -326,10 +318,10 @@ static __always_inline bool flow_dissector(struct __sk_buff *skb, struct bpf_flo
 	int poff;
 
 	if(proto == ETH_P_8021AD)
-	{ //处理ETH VLAN协议
+	{   //deal with ETH VLAN protocol
 		proto = load_half(skb, nhoff + offsetof(struct my_vlan_hdr,
 							h_vlan_encapsulated_proto));
-		nhoff += sizeof(struct my_vlan_hdr); //nhoff最终指向ip数据报头
+		nhoff += sizeof(struct my_vlan_hdr); //nhoff points to the IP data header
 	}
 
 	if(proto == ETH_P_8021Q)
@@ -339,8 +331,8 @@ static __always_inline bool flow_dissector(struct __sk_buff *skb, struct bpf_flo
 		nhoff += sizeof(struct my_vlan_hdr);
 	}
 
-	if(likely(proto == ETH_P_IP))			       //处理ip数据报头
-		nhoff = parse_ip(skb, nhoff, &ip_proto, flow); //nhoff指向ip数据报文
+	if(likely(proto == ETH_P_IP))			       
+		nhoff = parse_ip(skb, nhoff, &ip_proto, flow); //nhoff points to the IP data.
 	else if(proto == ETH_P_IPV6)
 		nhoff = parse_ipv6(skb, nhoff, &ip_proto, flow);
 	else

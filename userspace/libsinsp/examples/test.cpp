@@ -139,11 +139,11 @@ void test_tcp_handshake_agg(tcp_handshake_buffer_elem *results, int *reslen)
         ipv4_int_to_str(e.first.src_ip, ip_str);
         if(is_host_ip(ip_str))
         {
-            e.second.ackrtt_delta = -1; //如果自己是客户端，那么ackrtt值无效
+            e.second.ackrtt_delta = -1; //If host a client, ackrtt is invalid
         }
         else
         {
-            e.second.synrtt_delta = -1; //如果自己是服务端，那么synrtt无效
+            e.second.synrtt_delta = -1; //If host a server, synrtt is invalid
         }
         cout << "src_ip: " << ip_str << "  dst_ip: " <<  ipv4_int_to_str(e.first.dst_ip, ip_str) << "  dst_port: " << e.first.dst_port
             << "  data_counts: " << e.second.data_counts << "  synrtt_delta: " << e.second.synrtt_delta << "  ackrtt_delta: " << e.second.ackrtt_delta
@@ -196,15 +196,12 @@ int main(int argc, char **argv)
         }
     }
 
-
-    //for(int i = 0;i < 3;i++) {
-        tcp_handshake_buffer_elem *elem = new tcp_handshake_buffer_elem[500000];
-        int len;
-        sleep(1);
-        int32_t ret = inspector.get_tcp_handshake_rtt(elem, &len);
-        int tmp = 0;
-        test_tcp_handshake_agg(elem, &len);
-    //}
+    //tcp test code
+    /*tcp_handshake_buffer_elem *elem = new tcp_handshake_buffer_elem[500000];
+    int len;
+    sleep(1);
+    int32_t ret = inspector.get_tcp_handshake_rtt(elem, &len);
+    test_tcp_handshake_agg(elem, &len);*/
 
     while(!g_interrupted)
     {

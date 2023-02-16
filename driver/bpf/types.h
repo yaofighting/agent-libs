@@ -355,7 +355,7 @@ struct tcp_handshake_rtt { //tcp_handshake_map value
 	__s64 ackrtt;
 };
 
-struct tcp_handshake_buffer_elem {  //三次握手最终存储到buffer的信息
+struct tcp_handshake_buffer_elem {  //tcp handshake info in buffer
 	struct tcp_tuple tp;
 	__s64 synrtt;
 	__s64 ackrtt;
@@ -373,8 +373,8 @@ struct tcp_data_elem{
 };
 
 struct tcp_datainfo_last { //tcp_datainfo_map value
-	bool last_fin; //最后一个包是否是FIN包
-	__u64 package_counts; //tcp总包数
+	bool last_fin; //last package with FIN flag
+	__u64 package_counts; 
 };
 
 struct tcp_datainfo {
@@ -382,7 +382,7 @@ struct tcp_datainfo {
 	__be32 seq;
 	__be32 ack_seq;
 	__u64 timestamp;
-	__u64 package_counts; //该tuple的总包数
+	__u64 package_counts; //total counts with this tuple
 };
 
 

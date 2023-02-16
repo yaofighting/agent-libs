@@ -1829,11 +1829,10 @@ int32_t scap_bpf_get_tcp_handshake_rtt(scap_t* handle, struct tcp_handshake_buff
 			else
 			{
 				printf("buffer error, bpf_map_lookup_elem(handle->m_bpf_map_fds[SYSDIG_HANDSHAKE_BUFFER], heads[%d], elems) return %d\n", i, ret);
-				break;
+				return SCAP_NOTFOUND;
 			}
 		}	 
 	}
 	*reslen = count;
-	printf("exit!\n");
-	return SCAP_NOTFOUND;
+	return SCAP_SUCCESS;
 }
