@@ -60,6 +60,7 @@ struct iovec;
 #include "uthash.h"
 #include "../common/types.h"
 #include "../../driver/ppm_events_public.h"
+#include "../../driver/bpf/types.h"
 #ifdef _WIN32
 #include <time.h>
 #define MAP_FAILED (void*)-1
@@ -1114,6 +1115,8 @@ int32_t scap_set_statsd_port(scap_t* handle, uint16_t port);
 
 bool put_pid_vtid_map(scap_t *handle, uint64_t pid, uint64_t tid, uint64_t vtid);
 uint64_t get_pid_vtid_map(scap_t *handle, uint64_t pid, uint64_t vtid);
+
+int32_t scap_get_tcp_handshake_rtt(scap_t* handle, struct tcp_handshake_buffer_elem results[], int *reslen);
 #ifdef __cplusplus
 }
 #endif

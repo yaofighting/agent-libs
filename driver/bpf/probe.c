@@ -14,6 +14,8 @@ or GPL2.txt for full copies of the license.
 #include <uapi/linux/tcp.h>
 #include <uapi/linux/udp.h>
 #include <linux/sched.h>
+#include <uapi/linux/if_ether.h>
+#include <uapi/linux/if_packet.h>
 
 #include "../driver_config.h"
 #include "../ppm_events_public.h"
@@ -21,13 +23,11 @@ or GPL2.txt for full copies of the license.
 #include "types.h"
 #include "maps.h"
 #include "plumbing_helpers.h"
+#include "socket_helpers.h"
 #include "ring_helpers.h"
 #include "filler_helpers.h"
 #include "fillers.h"
 #include "builtins.h"
-#include <uapi/linux/ip.h>
-#include <uapi/linux/tcp.h>
-#include <uapi/linux/udp.h>
 
 #ifdef BPF_SUPPORTS_RAW_TRACEPOINTS
 #define BPF_PROBE(prefix, event, type)			\
@@ -46,6 +46,10 @@ int bpf_kp_##event(struct pt_regs *ctx)
 #define BPF_KRET_PROBE(event)				\
 __bpf_section(KRET_NAME #event)				\
 int bpf_kret_##event(struct pt_regs *ctx)
+
+#define BPF_SOCKET_PROBE(event) \
+__bpf_section(SK_NAME #event) \
+int bpf_sk_##event(struct __sk_buff *skb)
 
 BPF_PROBE("raw_syscalls/", sys_enter, sys_enter_args)
 {
@@ -807,6 +811,21 @@ BPF_KPROBE(sock_sendmsg) {
 	return 0;
 }
 #endif
+
+
+BPF_SOCKET_PROBE(tcp_analysis) 
+{
+	
+	struct bpf_flow_keys flow = {};
+
+	if (!flow_dissector(skb, &flow)) 
+		return 0;
+
+	// const char fmt[] = "__sync_fetch_and_add 1 with index: %d";
+	// bpf_trace_printk(fmt, sizeof(fmt), index);
+
+	return 0;
+}
 char kernel_ver[] __bpf_section("kernel_version") = UTS_RELEASE;
 
 char __license[] __bpf_section("license") = "GPL";

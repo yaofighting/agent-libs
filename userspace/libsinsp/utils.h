@@ -203,6 +203,7 @@ std::string ipv4tuple_to_string(ipv4tuple* tuple, bool resolve);
 std::string ipv6tuple_to_string(ipv6tuple* tuple, bool resolve);
 std::string ipv4serveraddr_to_string(ipv4serverinfo* addr, bool resolve);
 std::string ipv6serveraddr_to_string(ipv6serverinfo* addr, bool resolve);
+uint32_t ipv4string_to_int(const std::string& ip);
 
 // `l4proto` should be of type scap_l4_proto, but since it's an enum sometimes
 // is used as int and we would have to cast

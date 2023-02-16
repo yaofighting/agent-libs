@@ -90,15 +90,6 @@ struct bpf_map_def __bpf_section("maps") local_state_map = {
 	.max_entries = 0,
 };
 
-#ifndef BPF_SUPPORTS_RAW_TRACEPOINTS
-struct bpf_map_def __bpf_section("maps") stash_map = {
-	.type = BPF_MAP_TYPE_HASH,
-	.key_size = sizeof(u64),
-	.value_size = sizeof(struct sys_stash_args),
-	.max_entries = 65535,
-};
-#endif
-
 struct bpf_map_def __bpf_section("maps") rtt_static_map = {
         .type = BPF_MAP_TYPE_HASH,
         .key_size = sizeof(struct tuple),
@@ -112,6 +103,51 @@ struct bpf_map_def __bpf_section("maps") stash_tuple_map = {
 	.value_size = sizeof(struct tuple),
 	.max_entries = 65535,
 };
+
+
+struct bpf_map_def __bpf_section("maps") tcp_handshake_map = {
+	.type = BPF_MAP_TYPE_HASH,
+	.key_size = sizeof(struct tcp_tuple),
+	.value_size = sizeof(struct tcp_handshake_rtt),
+	.max_entries = 65535,
+};
+
+struct bpf_map_def SEC("maps") tcp_handshake_buffer = {
+	.type = BPF_MAP_TYPE_PERCPU_HASH,
+	.key_size = sizeof(u64),
+	.value_size = sizeof(struct tcp_handshake_buffer_elem),  
+	.max_entries = 1000000,
+};
+
+struct bpf_map_def SEC("maps") tcp_datainfo_map = {
+	.type = BPF_MAP_TYPE_HASH,
+	.key_size = sizeof(struct tcp_tuple),
+	.value_size = sizeof(struct tcp_datainfo_last),  
+	.max_entries = 1000000,
+};
+
+struct bpf_map_def SEC("maps") tcp_datainfo_buffer = {
+	.type = BPF_MAP_TYPE_PERCPU_HASH,
+	.key_size = sizeof(u64),
+	.value_size = sizeof(struct tcp_datainfo),  
+	.max_entries = 1000000,
+};
+
+struct bpf_map_def SEC("maps") tcp_buffer_pointer = {
+	.type = BPF_MAP_TYPE_PERCPU_HASH,
+	.key_size = sizeof(int),
+	.value_size = sizeof(u64),
+	.max_entries = 1024,
+};
+
+#ifndef BPF_SUPPORTS_RAW_TRACEPOINTS
+struct bpf_map_def __bpf_section("maps") stash_map = {
+	.type = BPF_MAP_TYPE_HASH,
+	.key_size = sizeof(u64),
+	.value_size = sizeof(struct sys_stash_args),
+	.max_entries = 65535,
+};
+#endif
 
 enum offcpu_type {
     ON, // 0

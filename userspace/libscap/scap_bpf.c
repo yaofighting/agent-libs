@@ -34,6 +34,8 @@ limitations under the License.
 #include <sys/auxv.h>
 #include <link.h>
 #include <elf.h>
+#include <unistd.h>
+#include <arpa/inet.h>
 
 #include "scap.h"
 #include "scap-int.h"
@@ -127,6 +129,18 @@ static int bpf_map_lookup_elem(int fd, const void *key, void *value)
 	attr.value = (unsigned long) value;
 
 	return sys_bpf(BPF_MAP_LOOKUP_ELEM, &attr, sizeof(attr));
+}
+
+static int bpf_map_delete_elem(int fd, const void *key)
+{
+	union bpf_attr attr;
+
+	bzero(&attr, sizeof(attr));
+
+	attr.map_fd = fd;
+	attr.key = (unsigned long) key;
+
+	return sys_bpf(BPF_MAP_DELETE_ELEM, &attr, sizeof(attr));
 }
 
 static int bpf_map_create(enum bpf_map_type map_type,
@@ -504,7 +518,7 @@ static int write_kprobe_events(const char *val)
 	return ret;
 }
 
-static int32_t load_tracepoint(scap_t* handle, const char *event, struct bpf_insn *prog, int size)
+static int32_t load_and_attach(scap_t* handle, const char *event, struct bpf_insn *prog, int size)
 {
 	struct perf_event_attr attr = {};
 	enum bpf_prog_type program_type = BPF_PROG_TYPE_UNSPEC;
@@ -520,6 +534,7 @@ static int32_t load_tracepoint(scap_t* handle, const char *event, struct bpf_ins
 	bool is_kretprobe = strncmp(event, "kretprobe/", 10) == 0;
 	bool is_tracepoint = strncmp(event, "tracepoint/", 11) == 0;
 	bool is_raw_tracepoint = strncmp(event, "raw_tracepoint/", 15) == 0;
+	bool is_socket = strncmp(event, "socket", 6) == 0;
 
 	insns_cnt = size / sizeof(struct bpf_insn);
 
@@ -575,6 +590,11 @@ static int32_t load_tracepoint(scap_t* handle, const char *event, struct bpf_ins
 			strcat(buf, "/id");
 		}
 	}
+	else if(is_socket) 
+	{
+		program_type = BPF_PROG_TYPE_SOCKET_FILTER;
+		event += 7;
+	}
 
 	if(*event == 0)
 	{
@@ -594,6 +614,17 @@ static int32_t load_tracepoint(scap_t* handle, const char *event, struct bpf_ins
 	free(error);
 
 	handle->m_bpf_prog_fds[handle->m_bpf_prog_cnt++] = fd;
+
+	//printf("prog_type:%d, insns_cnt:%d, license: %s, fd: %d\n", program_type, insns_cnt, license, fd);
+
+	if(is_socket){ //bind socket for BPF_PROG_TYPE_SOCKET_FILTER
+		int sock = open_raw_sock("0"); 
+		setsockopt(sock, SOL_SOCKET, SO_ATTACH_BPF, &handle->m_bpf_prog_fds[handle->m_bpf_prog_cnt - 1],
+			sizeof(__u32));
+		// printf("sock: %d, SOL_SOCKET: %d, SO_ATTACH_BPF: %d, prog_fd: %d, sizeof(prog_fd[0]): %d, handle->m_bpf_prog_cnt: %d\n", sock, 
+		// SOL_SOCKET, SO_ATTACH_BPF, &handle->m_bpf_prog_fds[handle->m_bpf_prog_cnt - 1], sizeof(__u32), handle->m_bpf_prog_cnt);
+		return SCAP_SUCCESS;
+	}
 
 	if(memcmp(event, "filler/", sizeof("filler/") - 1) == 0)
 	{
@@ -837,9 +868,10 @@ static int32_t load_bpf_file(scap_t *handle, const char *path)
 		if(memcmp(shname, "tracepoint/", sizeof("tracepoint/") - 1) == 0 ||
 		   memcmp(shname, "raw_tracepoint/", sizeof("raw_tracepoint/") - 1) == 0 ||
 		   memcmp(shname, "kprobe/", sizeof("kprobe/") - 1) == 0 ||
-		   memcmp(shname, "kretprobe/", sizeof("kretprobe/") - 1) == 0)
+		   memcmp(shname, "kretprobe/", sizeof("kretprobe/") - 1) == 0 ||
+		   memcmp(shname, "socket", 6) == 0)
 		{
-			int load_result = load_tracepoint(handle, shname, data->d_buf, data->d_size);
+			int load_result = load_and_attach(handle, shname, data->d_buf, data->d_size);
 			if((memcmp(shname, "kprobe/", sizeof("kprobe/") - 1) == 0 ||
 			    memcmp(shname, "kretprobe/", sizeof("kretprobe/") - 1) == 0) &&
 			   load_result == SCAP_UNKNOWN_KPROBE)
@@ -1756,4 +1788,52 @@ int32_t scap_bpf_handle_eventmask(scap_t* handle, uint32_t op, uint32_t event_id
 	}
 
 	return SCAP_SUCCESS;
+}
+
+
+int32_t scap_bpf_get_tcp_handshake_rtt(scap_t* handle, struct tcp_handshake_buffer_elem results[], int *reslen)
+{
+	int h = TCP_HANDSHAKE_BUFFER_HEAD, t = TCP_HANDSHAKE_BUFFER_TAIL, i;
+
+	int count = 0;
+
+	printf("the number of cpu: %d\n", handle->m_ncpus);
+
+	uint64_t heads[handle->m_ncpus];
+	uint64_t tails[handle->m_ncpus];
+	struct tcp_handshake_buffer_elem elems[handle->m_ncpus];
+
+	if(bpf_map_lookup_elem(handle->m_bpf_map_fds[SYSDIG_BUFFER_POINTER], &h, heads) != 0 
+		|| bpf_map_lookup_elem(handle->m_bpf_map_fds[SYSDIG_BUFFER_POINTER], &t, tails) != 0)
+	{
+		printf("handshake pointer is not initialized111.\n");
+		return SCAP_NOTFOUND;
+	}
+	
+
+	for(i = 0;i < handle->m_ncpus; i++)
+	{
+		printf("CPU id = %d. the number of handshake-rtt: %d, head = %d, tail = %d\n", i, tails[i] - heads[i], heads[i], tails[i]);
+		while(heads[i] < tails[i])
+		{
+			int ret = bpf_map_lookup_elem(handle->m_bpf_map_fds[SYSDIG_HANDSHAKE_BUFFER], &heads[i], elems);
+			if(ret == 0)
+			{
+				printf("synrtt:%lld, ackrtt: %lld, timestamp: %lld\n", elems[i].synrtt, elems[i].ackrtt, elems[i].timestamp);
+				//printf("src: %d, dst: %d, sport: %d, dport: %d, synrtt: %u, ackrtt: %u\n",  elems[i].src, elems[i].dst, elems[i].port16[0], elems[i].port16[1], 
+				//	elems[i].synrtt, elems[i].ackrtt);
+				results[count] = elems[i];
+				count++;
+				heads[i]++;	
+			}
+			else
+			{
+				printf("buffer error, bpf_map_lookup_elem(handle->m_bpf_map_fds[SYSDIG_HANDSHAKE_BUFFER], heads[%d], elems) return %d\n", i, ret);
+				break;
+			}
+		}	 
+	}
+	*reslen = count;
+	printf("exit!\n");
+	return SCAP_NOTFOUND;
 }

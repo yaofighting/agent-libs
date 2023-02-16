@@ -4986,4 +4986,9 @@ FILLER(cpu_analysis_e, false)
 {
     return 0;
 }
+
+FILLER(tcp_handshake_e, false)
+{
+	return 0;
+}
 #endif

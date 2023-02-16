@@ -9,6 +9,8 @@ or GPL2.txt for full copies of the license.
 #ifndef __BPF_HELPERS_H
 #define __BPF_HELPERS_H
 
+#define SEC(NAME) __attribute__((section(NAME), used))
+
 static void *(*bpf_map_lookup_elem)(void *map, void *key) =
 	(void *)BPF_FUNC_map_lookup_elem;
 static int (*bpf_map_update_elem)(void *map, void *key, void *value,
@@ -76,5 +78,16 @@ static int (*bpf_skb_under_cgroup)(void *ctx, void *map, int index) =
 	(void *)BPF_FUNC_skb_under_cgroup;
 static int (*bpf_skb_change_head)(void *, int len, int flags) =
 	(void *)BPF_FUNC_skb_change_head;
+
+/* llvm builtin functions that eBPF C program may use to
+ * emit BPF_LD_ABS and BPF_LD_IND instructions
+ */
+struct sk_buff;
+unsigned long long load_byte(void *skb,
+			     unsigned long long off) asm("llvm.bpf.load.byte");
+unsigned long long load_half(void *skb,
+			     unsigned long long off) asm("llvm.bpf.load.half");
+unsigned long long load_word(void *skb,
+			     unsigned long long off) asm("llvm.bpf.load.word");
 
 #endif

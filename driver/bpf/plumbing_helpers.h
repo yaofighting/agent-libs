@@ -51,6 +51,7 @@ static __always_inline bool prepare_filler(void *ctx,
 					   struct sysdig_bpf_settings *settings,
 					   enum syscall_flags drop_flags);
 static __always_inline int bpf_cpu_analysis(void *ctx, u32 tid);
+static __always_inline int bpf_tcp_handshake(void *ctx);
 #ifdef CPU_ANALYSIS
 static __always_inline void clear_map(u32 tid)
 {

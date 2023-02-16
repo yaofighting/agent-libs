@@ -2781,10 +2781,10 @@ enum bpf_task_fd_type {
 	BPF_FD_TYPE_URETPROBE,		/* filename + offset */
 };
 
-struct bpf_flow_keys {
+/*struct bpf_flow_keys {
 	__u16	nhoff;
 	__u16	thoff;
-	__u16	addr_proto;			/* ETH_P_* of valid addrs */
+	__u16	addr_proto;			// ETH_P_* of valid addrs 
 	__u8	is_frag;
 	__u8	is_first_frag;
 	__u8	is_encap;
@@ -2798,10 +2798,10 @@ struct bpf_flow_keys {
 			__be32	ipv4_dst;
 		};
 		struct {
-			__u32	ipv6_src[4];	/* in6_addr; network order */
-			__u32	ipv6_dst[4];	/* in6_addr; network order */
+			__u32	ipv6_src[4];	// in6_addr; network order 
+			__u32	ipv6_dst[4];	// in6_addr; network order 
 		};
 	};
-};
+};*/
 
 #endif /* _UAPI__LINUX_BPF_H__ */

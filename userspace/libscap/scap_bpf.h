@@ -17,7 +17,18 @@ limitations under the License.
 #ifndef _SCAP_BPF_H
 #define _SCAP_BPF_H
 
+#include <stdlib.h>
+#include <stdio.h>
+#include <linux/unistd.h>
+#include <unistd.h>
+#include <string.h>
+#include <errno.h>
+#include <linux/if_ether.h>
+#include <net/if.h>
+#include <linux/if_packet.h>
+#include <arpa/inet.h>
 #include "compat/perf_event.h"
+#include "../../driver/bpf/types.h"
 
 struct perf_event_sample {
 	struct perf_event_header header;
@@ -49,6 +60,33 @@ int32_t scap_bpf_get_n_tracepoint_hit(scap_t* handle, long* ret);
 int32_t scap_bpf_enable_skb_capture(scap_t *handle, const char *ifname);
 int32_t scap_bpf_disable_skb_capture(scap_t *handle);
 int32_t scap_bpf_handle_eventmask(scap_t* handle, uint32_t op, uint32_t event_id);
+int64_t scap_bpf_get_tcp_count(scap_t* handle, uint32_t src_ip, uint32_t dst_ip);
+int32_t scap_bpf_get_tcp_handshake_rtt(scap_t* handle, struct tcp_handshake_buffer_elem results[], int *reslen);
+
+static inline int open_raw_sock(const char *name)
+{
+	struct sockaddr_ll sll;
+	int sock;
+
+	sock = socket(PF_PACKET, SOCK_RAW | SOCK_NONBLOCK | SOCK_CLOEXEC, htons(ETH_P_ALL));
+	//printf("ETH_P_ALL:%d, htons:%d\n", ETH_P_ALL, htons(ETH_P_ALL));
+	if (sock < 0) {
+		printf("cannot create raw socket\n");
+		return -1;
+	}
+
+	memset(&sll, 0, sizeof(sll));
+	sll.sll_family = AF_PACKET;
+	sll.sll_ifindex = 0; //Match all network adapters
+	sll.sll_protocol = htons(ETH_P_ALL);
+	if (bind(sock, (struct sockaddr *)&sll, sizeof(sll)) < 0) {
+		printf("bind to %s: %s\n", name, strerror(errno));
+		close(sock);
+		return -1;
+	}
+
+	return sock;
+}
 
 static inline scap_evt *scap_bpf_evt_from_perf_sample(void *evt)
 {

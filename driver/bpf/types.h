@@ -26,6 +26,8 @@ or GPL2.txt for full copies of the license.
 #define TP_NAME "tracepoint/"
 #endif
 
+
+#define SK_NAME "socket/" 
 #define KP_NAME "kprobe/"
 #define KRET_NAME "kretprobe/"
 
@@ -233,6 +235,13 @@ struct tuple {
 	__u16 pad;
 };
 
+struct tcp_tuple {
+	__u16 sport;
+	__u16 dport;
+	__u32 saddr;
+	__u32 daddr;
+};
+
 #ifdef BPF_SUPPORTS_RAW_TRACEPOINTS
 struct tcp_reset_args {
     struct sock *sk;
@@ -261,10 +270,23 @@ enum sysdig_map_types {
 	SYSDIG_TMP_SCRATCH_MAP = 7,
 	SYSDIG_SETTINGS_MAP = 8,
 	SYSDIG_LOCAL_STATE_MAP = 9,
+	SYSDIG_RTT_STATISTICS = 10,
+	SYSDIG_STASH_TUPLE_MAP = 11,
+	SYSDIG_HANDSHAKE_MAP  = 12,
+	SYSDIG_HANDSHAKE_BUFFER = 13,
+	SYSDIG_TCP_DATAINFO_MAP = 14,
+	SYSDIG_TCP_DATAINFO_BUFFER = 15,
+	SYSDIG_BUFFER_POINTER = 16,
 #ifndef BPF_SUPPORTS_RAW_TRACEPOINTS
-	SYSDIG_STASH_MAP = 10,
-	SYSDIG_RTT_STATISTICS = 11,
+	SYSDIG_STASH_MAP = 17,
 #endif
+};
+
+enum tcp_buffer_pointer_types {
+	TCP_HANDSHAKE_BUFFER_HEAD = 0,
+	TCP_HANDSHAKE_BUFFER_TAIL = 1,
+	TCP_DATAINFO_BUFFER_HEAD = 2,
+	TCP_DATAINFO_BUFFER_TAIL = 3,
 };
 
 struct sysdig_bpf_settings {
@@ -305,6 +327,64 @@ struct sysdig_bpf_per_cpu_state {
 	unsigned int hotplug_cpu;
 	bool in_use;
 } __attribute__((packed));
+
+struct my_vlan_hdr {
+	__be16 h_vlan_TCI;
+	__be16 h_vlan_encapsulated_proto;
+};
+
+struct bpf_flow_keys {
+	__be32 src;
+	__be32 dst;
+	__be32 seq;
+	__be32 ack_seq;
+	__u16 flag;
+	union {
+		__be32 ports;
+		__be16 port16[2];
+	};
+	__u16 thoff;
+	__u8 ip_proto;
+};
+
+/*
+tcp handshake analysis structure.
+*/
+struct tcp_handshake_rtt { //tcp_handshake_map value
+	__s64 synrtt;
+	__s64 ackrtt;
+};
+
+struct tcp_handshake_buffer_elem {  //三次握手最终存储到buffer的信息
+	struct tcp_tuple tp;
+	__s64 synrtt;
+	__s64 ackrtt;
+	__u64 timestamp;
+};
+
+/*
+tcp datainfo analysis structure.
+*/
+
+struct tcp_data_elem{
+	__be32 seq;
+	__be32 ack_seq;
+	__u64 timestamp;
+};
+
+struct tcp_datainfo_last { //tcp_datainfo_map value
+	bool last_fin; //最后一个包是否是FIN包
+	__u64 package_counts; //tcp总包数
+};
+
+struct tcp_datainfo {
+	struct tcp_tuple tp;
+	__be32 seq;
+	__be32 ack_seq;
+	__u64 timestamp;
+	__u64 package_counts; //该tuple的总包数
+};
+
 
 #endif
 

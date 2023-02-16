@@ -1315,6 +1315,28 @@ string ipv6tuple_to_string(_ipv6tuple* tuple, bool resolve)
 	return string(buf);
 }
 
+uint32_t ipv4string_to_int(const std::string& ip)
+{
+	//TO DO. check the ip format first
+	uint32_t ipInt = 0, delta = 0;
+	uint32_t weight = (1 << 24);
+	for(int i = 0;i <= ip.length();i++)
+	{
+		if(ip[i] != '.' && ip[i] != '\0')
+		{
+			delta *= 10;
+			delta += ip[i] - '0';
+		}
+		else
+		{
+			delta *= weight;
+			ipInt += delta;
+			weight >>= 8;
+			delta = 0;
+		}
+	}
+	return ipInt;
+}
 const char* param_type_to_string(ppm_param_type pt)
 {
 	switch(pt)

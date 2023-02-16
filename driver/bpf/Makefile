@@ -36,7 +36,8 @@ $(obj)/probe.o: $(src)/probe.c \
 		$(src)/plumbing_helpers.h \
 		$(src)/quirks.h \
 		$(src)/ring_helpers.h \
-		$(src)/types.h
+		$(src)/types.h \
+		$(src)/socket_helpers.h 
 	$(CLANG) $(LINUXINCLUDE) \
 		$(FILTERED_KBUILD_CPPFLAGS) \
 		$(KBUILD_EXTRA_CPPFLAGS) \
