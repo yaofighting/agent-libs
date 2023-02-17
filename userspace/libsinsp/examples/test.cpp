@@ -197,11 +197,11 @@ int main(int argc, char **argv)
     }
 
     //tcp test code
-    /*tcp_handshake_buffer_elem *elem = new tcp_handshake_buffer_elem[500000];
+    tcp_handshake_buffer_elem *elem = new tcp_handshake_buffer_elem[500000];
     int len;
     sleep(1);
     int32_t ret = inspector.get_tcp_handshake_rtt(elem, &len);
-    test_tcp_handshake_agg(elem, &len);*/
+    test_tcp_handshake_agg(elem, &len);
 
     while(!g_interrupted)
     {

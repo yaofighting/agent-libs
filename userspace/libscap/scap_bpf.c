@@ -619,7 +619,7 @@ static int32_t load_and_attach(scap_t* handle, const char *event, struct bpf_ins
 
 	if(is_socket){ //bind socket for BPF_PROG_TYPE_SOCKET_FILTER
 		int sock = open_raw_sock("0"); 
-		setsockopt(sock, SOL_SOCKET, SO_ATTACH_BPF, &handle->m_bpf_prog_fds[handle->m_bpf_prog_cnt - 1],
+		setsockopt(sock, SOL_SOCKET, PPM_SOCKOPT_SO_ATTACH_BPF, &handle->m_bpf_prog_fds[handle->m_bpf_prog_cnt - 1],
 			sizeof(__u32));
 		// printf("sock: %d, SOL_SOCKET: %d, SO_ATTACH_BPF: %d, prog_fd: %d, sizeof(prog_fd[0]): %d, handle->m_bpf_prog_cnt: %d\n", sock, 
 		// SOL_SOCKET, SO_ATTACH_BPF, &handle->m_bpf_prog_fds[handle->m_bpf_prog_cnt - 1], sizeof(__u32), handle->m_bpf_prog_cnt);
@@ -1819,7 +1819,7 @@ int32_t scap_bpf_get_tcp_handshake_rtt(scap_t* handle, struct tcp_handshake_buff
 			int ret = bpf_map_lookup_elem(handle->m_bpf_map_fds[SYSDIG_HANDSHAKE_BUFFER], &heads[i], elems);
 			if(ret == 0)
 			{
-				printf("synrtt:%lld, ackrtt: %lld, timestamp: %lld\n", elems[i].synrtt, elems[i].ackrtt, elems[i].timestamp);
+				//printf("synrtt:%lld, ackrtt: %lld, timestamp: %lld\n", elems[i].synrtt, elems[i].ackrtt, elems[i].timestamp);
 				//printf("src: %d, dst: %d, sport: %d, dport: %d, synrtt: %u, ackrtt: %u\n",  elems[i].src, elems[i].dst, elems[i].port16[0], elems[i].port16[1], 
 				//	elems[i].synrtt, elems[i].ackrtt);
 				results[count] = elems[i];

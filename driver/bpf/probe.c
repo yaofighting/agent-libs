@@ -816,7 +816,7 @@ BPF_KPROBE(sock_sendmsg) {
 BPF_SOCKET_PROBE(tcp_analysis) 
 {
 	enum ppm_event_type evt_type = PPME_TCP_HANDSHAKE_E;
-
+	struct sysdig_bpf_settings *settings;
 	settings = get_bpf_settings();
 	if (!settings)
 		return 0;
