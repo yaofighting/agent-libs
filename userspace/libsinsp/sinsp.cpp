@@ -1131,7 +1131,7 @@ int32_t sinsp::get_tcp_handshake_rtt(tcp_handshake_buffer_elem results[], int *r
 	if(is_live() && m_h != NULL)
 	{
 		int32_t ret = scap_get_tcp_handshake_rtt(m_h, results, reslen);
-		if(ret == SCAP_NOTFOUND)
+		if(ret != SCAP_SUCCESS)
 			return -1;
 		return 0;
 	}

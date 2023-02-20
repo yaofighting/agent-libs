@@ -289,6 +289,8 @@ enum tcp_buffer_pointer_types {
 	TCP_DATAINFO_BUFFER_TAIL = 3,
 };
 
+#define MAX_BUFFER_LEN (1024*2048) //for tcp ring buffer
+
 struct sysdig_bpf_settings {
 	uint64_t boot_time;
 	void *socket_file_ops;
@@ -384,7 +386,6 @@ struct tcp_datainfo {
 	__u64 timestamp;
 	__u64 package_counts; //total counts with this tuple
 };
-
 
 #endif
 

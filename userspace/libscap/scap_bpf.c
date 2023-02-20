@@ -1790,15 +1790,10 @@ int32_t scap_bpf_handle_eventmask(scap_t* handle, uint32_t op, uint32_t event_id
 	return SCAP_SUCCESS;
 }
 
-
 int32_t scap_bpf_get_tcp_handshake_rtt(scap_t* handle, struct tcp_handshake_buffer_elem results[], int *reslen)
 {
 	int h = TCP_HANDSHAKE_BUFFER_HEAD, t = TCP_HANDSHAKE_BUFFER_TAIL, i;
-
 	int count = 0;
-
-	printf("the number of cpu: %d\n", handle->m_ncpus);
-
 	uint64_t heads[handle->m_ncpus];
 	uint64_t tails[handle->m_ncpus];
 	struct tcp_handshake_buffer_elem elems[handle->m_ncpus];
@@ -1806,33 +1801,34 @@ int32_t scap_bpf_get_tcp_handshake_rtt(scap_t* handle, struct tcp_handshake_buff
 	if(bpf_map_lookup_elem(handle->m_bpf_map_fds[SYSDIG_BUFFER_POINTER], &h, heads) != 0 
 		|| bpf_map_lookup_elem(handle->m_bpf_map_fds[SYSDIG_BUFFER_POINTER], &t, tails) != 0)
 	{
-		printf("handshake pointer is not initialized111.\n");
+		snprintf(handle->m_lasterr, SCAP_LASTERR_SIZE, "handshake pointer is not initialized.");
 		return SCAP_NOTFOUND;
 	}
-	
 
 	for(i = 0;i < handle->m_ncpus; i++)
 	{
-		printf("CPU id = %d. the number of handshake-rtt: %d, head = %d, tail = %d\n", i, tails[i] - heads[i], heads[i], tails[i]);
-		while(heads[i] < tails[i])
+		//printf("CPU id = %d. the number of handshake-rtt: %d, head = %d, tail = %d\n", i, tails[i] - heads[i], heads[i], tails[i]);
+		while(heads[i] != tails[i])
 		{
 			int ret = bpf_map_lookup_elem(handle->m_bpf_map_fds[SYSDIG_HANDSHAKE_BUFFER], &heads[i], elems);
 			if(ret == 0)
 			{
-				//printf("synrtt:%lld, ackrtt: %lld, timestamp: %lld\n", elems[i].synrtt, elems[i].ackrtt, elems[i].timestamp);
-				//printf("src: %d, dst: %d, sport: %d, dport: %d, synrtt: %u, ackrtt: %u\n",  elems[i].src, elems[i].dst, elems[i].port16[0], elems[i].port16[1], 
-				//	elems[i].synrtt, elems[i].ackrtt);
-				results[count] = elems[i];
-				count++;
-				heads[i]++;	
+				// printf("heads[i]: %d, src: %d, dst: %d, sport: %d, dport: %d, synrtt: %u, ackrtt: %u, timestamp: %llu\n", heads[i], elems[i].tp.saddr, elems[i].tp.daddr, elems[i].tp.sport, elems[i].tp.dport, 
+				// 	elems[i].synrtt, elems[i].ackrtt, elems[i].timestamp);
+				results[count++] = elems[i];
+				heads[i] = (heads[i] + 1) % MAX_BUFFER_LEN;	
 			}
 			else
 			{
-				printf("buffer error, bpf_map_lookup_elem(handle->m_bpf_map_fds[SYSDIG_HANDSHAKE_BUFFER], heads[%d], elems) return %d\n", i, ret);
-				return SCAP_NOTFOUND;
+				break;
 			}
-		}	 
+		}	
 	}
 	*reslen = count;
+	if(bpf_map_update_elem(handle->m_bpf_map_fds[SYSDIG_BUFFER_POINTER], &h, heads, BPF_ANY) != 0)
+	{
+		snprintf(handle->m_lasterr, SCAP_LASTERR_SIZE, "SYSDIG_BUFFER_POINTER bpf_map_update_elem < 0");
+		return SCAP_FAILURE;
+	}
 	return SCAP_SUCCESS;
 }

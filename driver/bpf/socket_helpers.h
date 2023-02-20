@@ -123,10 +123,10 @@ static __always_inline void init_buffer_pointer(u64 **head, u64 **tail, int head
 {
 	*head = bpf_map_lookup_elem(&tcp_buffer_pointer, &head_key);
 	*tail = bpf_map_lookup_elem(&tcp_buffer_pointer, &tail_key);
-	if(!(*head) || !(*tail)) //initialize the buffer pointer
+	if(unlikely(!(*head) || !(*tail))) //initialize the buffer pointer
 	{
 		u64 val = 0;
-		const char m[] = "init head and tail.\n";
+		const char m[] = "initialize head and tail.\n";
 		bpf_trace_printk(m, sizeof(m));
 		bpf_map_update_elem(&tcp_buffer_pointer, &head_key, &val, BPF_ANY);
 		bpf_map_update_elem(&tcp_buffer_pointer, &tail_key, &val, BPF_ANY);
@@ -152,11 +152,10 @@ static __always_inline void parse_tcp_handshake(struct sysdig_bpf_settings *sett
 	if(SYN == 0 && ACK == 1)
 	{
 		struct tcp_handshake_rtt *s_rtt = bpf_map_lookup_elem(&tcp_handshake_map, &cur_tuple);
-		//第三次握手
+		//the third handshake
 		if(s_rtt)
 		{
-			const char log[] = "third: insert to handshake buffer: synrtt: %llu, ackrtt: %llu, timestamp: %llu\n";
-			bpf_trace_printk(log, sizeof(log), s_rtt->synrtt, s_rtt->ackrtt, cur_time);
+			bpf_printk("third: insert to handshake buffer: synrtt: %llu, ackrtt: %llu, timestamp: %llu\n", s_rtt->synrtt, s_rtt->ackrtt, cur_time);
 			u64 *tail = bpf_map_lookup_elem(&tcp_buffer_pointer, &tail_key);
 			if(tail)
 			{
@@ -168,30 +167,33 @@ static __always_inline void parse_tcp_handshake(struct sysdig_bpf_settings *sett
 				//clear map
 				bpf_map_delete_elem(&tcp_handshake_map, &cur_tuple);
 				bpf_map_update_elem(&tcp_handshake_buffer, tail, &cur_elem, BPF_ANY);
-				__sync_fetch_and_add(tail, 1); //tail++
+				if(likely(*tail < MAX_BUFFER_LEN - 1))
+				{
+					__sync_fetch_and_add(tail, 1); //tail++
+				}
+				else
+				{
+					*tail = 0; //reset tail
+				}
 			}
 			else
 			{
-				const char error[] = "handshake buffer error, the tail pointer not found in the third handshake.\n";
-				bpf_trace_printk(error, sizeof(error));
+				bpf_printk("handshake buffer error, the tail pointer not found in the third handshake.\n");
 			}
 		}
 		else
 		{
-			const char error[] = "handshake map error, the second handshake not found.\n";
-			bpf_trace_printk(error, sizeof(error));
+			bpf_printk("handshake map error, the second handshake not found.\n");
 		}
 	}
 	else if(SYN == 1)
 	{
 		if(ACK == 0)
-		{ //第一次握手
+		{   //the first handshake
 			struct tcp_handshake_rtt f_rtt = {};
 			f_rtt.synrtt = cur_time;
 			bpf_map_update_elem(&tcp_handshake_map, &cur_tuple, &f_rtt, BPF_ANY);
-
-			const char tlog[] = "first: cur_time: %llu, cpuid = %d\n";
-			bpf_trace_printk(tlog, sizeof(tlog), cur_time, cpu);
+			bpf_printk("first: cur_time: %llu, cpuid = %d\n", cur_time, cpu);
 		}
 		else
 		{ 	//the second handshake
@@ -200,13 +202,11 @@ static __always_inline void parse_tcp_handshake(struct sysdig_bpf_settings *sett
 			if(f_rtt)
 			{
 				f_rtt->ackrtt = cur_time; //update to the second handshake timestamp
-				const char tlog[] = "second: cur_time: %llu, cpuid = %d\n";
-				bpf_trace_printk(tlog, sizeof(tlog), cur_time, cpu);
+				bpf_printk("second: cur_time: %llu, cpuid = %d\n", cur_time, cpu);
 			}
 			else //only drop if not match
 			{
-				const char error[] = "handshake map error, the first handshake not found.\n";
-				bpf_trace_printk(error, sizeof(error));
+				bpf_printk("handshake map error, the first handshake not found.\n");
 				bpf_map_delete_elem(&tcp_handshake_map, &cur_tuple);
 			}
 		}
@@ -255,7 +255,14 @@ static __always_inline void parse_tcp_datainfo(struct sysdig_bpf_settings *setti
 				if(tail)
 				{
 					bpf_map_update_elem(&tcp_datainfo_buffer, tail, &info, BPF_ANY);
-					__sync_fetch_and_add(tail, 1); 
+					if(likely(*tail < MAX_BUFFER_LEN - 1))
+					{
+						__sync_fetch_and_add(tail, 1); //tail++
+					}
+					else
+					{
+						*tail = 0; //reset tail
+					}
 				}
 			}
 			else if(last_package && last_rcv_pkg && last_rcv_pkg->last_fin == 1 && last_package->last_fin == 1)
@@ -299,14 +306,6 @@ static __always_inline __u64 parse_tcp(struct __sk_buff *skb, __u64 nhoff, __u64
 	parse_tcp_handshake(settings, flow); 
 
 	//parse_tcp_datainfo(settings, flow); 
-
-	// const char fmt_str[] = "src: %d, srcport: %d, dst: %d";
-	// bpf_trace_printk(fmt_str, sizeof(fmt_str), flow->src, flow->port16[1], flow->dst);
-	// const char fmt_str2[] = "dstport: %d, SYN: %d, ACK: %d\n";
-	// bool SYN = flow->flag&(0x0040);
-	// bool ACK = flow->flag&(0x0008);
-	// bpf_trace_printk(fmt_str2, sizeof(fmt_str2), flow->port16[0], SYN, ACK);
-	//update_stats(skb, flow);
 	return nhoff;
 }
 
@@ -358,14 +357,7 @@ static __always_inline bool flow_dissector(struct __sk_buff *skb, struct bpf_flo
 	}
 
 	flow->thoff = (__u16)nhoff;
-	//bpf_trace_printk("protocol: %d\n", flow->ip_proto);
 	return true;
 }
-
-struct pair
-{
-	long packets;
-	long bytes;
-};
 
 #endif

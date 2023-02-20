@@ -19,6 +19,8 @@ struct bpf_map_def {
 	unsigned int numa_node;
 };
 
+#define MAX_BUFFER_LEN (1024*2048)
+
 #ifdef __KERNEL__
 struct bpf_map_def __bpf_section("maps") perf_map = {
 	.type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
@@ -116,21 +118,21 @@ struct bpf_map_def SEC("maps") tcp_handshake_buffer = {
 	.type = BPF_MAP_TYPE_PERCPU_HASH,
 	.key_size = sizeof(u64),
 	.value_size = sizeof(struct tcp_handshake_buffer_elem),  
-	.max_entries = 1000000,
+	.max_entries = MAX_BUFFER_LEN,
 };
 
 struct bpf_map_def SEC("maps") tcp_datainfo_map = {
 	.type = BPF_MAP_TYPE_HASH,
 	.key_size = sizeof(struct tcp_tuple),
 	.value_size = sizeof(struct tcp_datainfo_last),  
-	.max_entries = 1000000,
+	.max_entries = 65535,
 };
 
 struct bpf_map_def SEC("maps") tcp_datainfo_buffer = {
 	.type = BPF_MAP_TYPE_PERCPU_HASH,
 	.key_size = sizeof(u64),
 	.value_size = sizeof(struct tcp_datainfo),  
-	.max_entries = 1000000,
+	.max_entries = MAX_BUFFER_LEN,
 };
 
 struct bpf_map_def SEC("maps") tcp_buffer_pointer = {
