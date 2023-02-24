@@ -812,10 +812,9 @@ BPF_KPROBE(sock_sendmsg) {
 }
 #endif
 
-
 BPF_SOCKET_PROBE(tcp_analysis) 
 {
-	enum ppm_event_type evt_type = PPME_TCP_HANDSHAKE_E;
+	enum ppm_event_type evt_type = PPME_TCP_PACKAGE_ANALYSIS_E;
 	struct sysdig_bpf_settings *settings;
 	settings = get_bpf_settings();
 	if (!settings)
@@ -829,15 +828,14 @@ BPF_SOCKET_PROBE(tcp_analysis)
 	}
 	
 	struct bpf_flow_keys flow = {};
+	u64 cur_time = bpf_ktime_get_ns() + settings->boot_time;
 
-	if (!flow_dissector(skb, &flow)) 
+	if (!flow_dissector(skb, &flow, &cur_time)) 
 		return 0;
-
-	// const char fmt[] = "__sync_fetch_and_add 1 with index: %d";
-	// bpf_trace_printk(fmt, sizeof(fmt), index);
 
 	return 0;
 }
+
 char kernel_ver[] __bpf_section("kernel_version") = UTS_RELEASE;
 
 char __license[] __bpf_section("license") = "GPL";

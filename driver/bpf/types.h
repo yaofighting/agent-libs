@@ -287,6 +287,8 @@ enum tcp_buffer_pointer_types {
 	TCP_HANDSHAKE_BUFFER_TAIL = 1,
 	TCP_DATAINFO_BUFFER_HEAD = 2,
 	TCP_DATAINFO_BUFFER_TAIL = 3,
+
+	TCP_POINTER_COUNTS
 };
 
 #define MAX_BUFFER_LEN (1024*2048) //for tcp ring buffer
@@ -367,12 +369,6 @@ struct tcp_handshake_buffer_elem {  //tcp handshake info in buffer
 /*
 tcp datainfo analysis structure.
 */
-
-struct tcp_data_elem{
-	__be32 seq;
-	__be32 ack_seq;
-	__u64 timestamp;
-};
 
 struct tcp_datainfo_last { //tcp_datainfo_map value
 	bool last_fin; //last package with FIN flag

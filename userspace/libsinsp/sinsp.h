@@ -910,7 +910,8 @@ public:
 
 	static unsigned num_possible_cpus();
 
-	int32_t  get_tcp_handshake_rtt(tcp_handshake_buffer_elem results[], int *reslen);
+	int32_t get_tcp_handshake_rtt(tcp_handshake_buffer_elem results[], int *reslen);
+	int32_t get_tcp_datainfo(tcp_datainfo results[], int *resLen);
 
 #if defined(HAS_CAPTURE) && !defined(_WIN32)
 	static std::shared_ptr<std::string> lookup_cgroup_dir(const std::string& subsys);

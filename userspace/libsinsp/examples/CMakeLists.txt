@@ -3,6 +3,7 @@ include_directories("../../")
 
 add_executable(sinsp-example
 	util.cpp
+	tcp_package_test.cpp
 	test.cpp
 )
 

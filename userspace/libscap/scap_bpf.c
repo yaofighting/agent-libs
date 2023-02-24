@@ -1794,8 +1794,8 @@ int32_t scap_bpf_get_tcp_handshake_rtt(scap_t* handle, struct tcp_handshake_buff
 {
 	int h = TCP_HANDSHAKE_BUFFER_HEAD, t = TCP_HANDSHAKE_BUFFER_TAIL, i;
 	int count = 0;
-	uint64_t heads[handle->m_ncpus];
-	uint64_t tails[handle->m_ncpus];
+	uint32_t heads[handle->m_ncpus];
+	uint32_t tails[handle->m_ncpus];
 	struct tcp_handshake_buffer_elem elems[handle->m_ncpus];
 
 	if(bpf_map_lookup_elem(handle->m_bpf_map_fds[SYSDIG_BUFFER_POINTER], &h, heads) != 0 
@@ -1825,6 +1825,59 @@ int32_t scap_bpf_get_tcp_handshake_rtt(scap_t* handle, struct tcp_handshake_buff
 		}	
 	}
 	*reslen = count;
+	if(bpf_map_update_elem(handle->m_bpf_map_fds[SYSDIG_BUFFER_POINTER], &h, heads, BPF_ANY) != 0)
+	{
+		snprintf(handle->m_lasterr, SCAP_LASTERR_SIZE, "SYSDIG_BUFFER_POINTER bpf_map_update_elem < 0");
+		return SCAP_FAILURE;
+	}
+	return SCAP_SUCCESS;
+}
+
+//select an tcpdata event with the earliest timestamp.
+int32_t scap_bpf_select_earliest_tcpdata(scap_t* handle, int heads[], int tails[], struct tcp_datainfo elems[], struct tcp_datainfo * tf)
+{
+	int min_cpu = -1, i;
+	uint64_t min_time = 0xffffffffffffffff;
+	for(i = 0;i < handle->m_ncpus; i++)
+	{
+		if(heads[i] != tails[i] && bpf_map_lookup_elem(handle->m_bpf_map_fds[SYSDIG_TCP_DATAINFO_BUFFER], &heads[i], elems) == 0)
+		{
+			if(elems[i].timestamp < min_time)
+			{
+				min_time = elems[i].timestamp;
+				min_cpu = i;
+				*tf = elems[i];
+			}
+		}
+	}
+	if(min_cpu == -1)
+	{
+		return -1;
+	}
+	heads[min_cpu] = (heads[min_cpu] + 1) % MAX_BUFFER_LEN;
+	return 0;
+} 
+int32_t scap_bpf_get_tcp_datainfo(scap_t* handle, struct tcp_datainfo results[], int *reslen)
+{
+	int h = TCP_DATAINFO_BUFFER_HEAD, t = TCP_DATAINFO_BUFFER_TAIL, i;
+
+	uint32_t count = 0, pkgcount = 0;
+
+	uint64_t heads[handle->m_ncpus];
+	uint64_t tails[handle->m_ncpus];
+	struct tcp_datainfo elems[handle->m_ncpus];
+
+	if(bpf_map_lookup_elem(handle->m_bpf_map_fds[SYSDIG_BUFFER_POINTER], &h, heads) != 0 
+		|| bpf_map_lookup_elem(handle->m_bpf_map_fds[SYSDIG_BUFFER_POINTER], &t, tails) != 0)
+	{
+		snprintf(handle->m_lasterr, SCAP_LASTERR_SIZE, "tcp datainfo pointer is not initialized.");
+		return SCAP_NOTFOUND;
+	}
+
+	while(scap_bpf_select_earliest_tcpdata(handle, heads, tails, elems, &results[count++]) != -1);
+
+	*reslen = count - 1;
+
 	if(bpf_map_update_elem(handle->m_bpf_map_fds[SYSDIG_BUFFER_POINTER], &h, heads, BPF_ANY) != 0)
 	{
 		snprintf(handle->m_lasterr, SCAP_LASTERR_SIZE, "SYSDIG_BUFFER_POINTER bpf_map_update_elem < 0");

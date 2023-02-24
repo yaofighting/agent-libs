@@ -115,8 +115,8 @@ struct bpf_map_def __bpf_section("maps") tcp_handshake_map = {
 };
 
 struct bpf_map_def SEC("maps") tcp_handshake_buffer = {
-	.type = BPF_MAP_TYPE_PERCPU_HASH,
-	.key_size = sizeof(u64),
+	.type = BPF_MAP_TYPE_PERCPU_ARRAY,
+	.key_size = sizeof(int),
 	.value_size = sizeof(struct tcp_handshake_buffer_elem),  
 	.max_entries = MAX_BUFFER_LEN,
 };
@@ -129,17 +129,17 @@ struct bpf_map_def SEC("maps") tcp_datainfo_map = {
 };
 
 struct bpf_map_def SEC("maps") tcp_datainfo_buffer = {
-	.type = BPF_MAP_TYPE_PERCPU_HASH,
-	.key_size = sizeof(u64),
+	.type = BPF_MAP_TYPE_PERCPU_ARRAY,
+	.key_size = sizeof(int),
 	.value_size = sizeof(struct tcp_datainfo),  
 	.max_entries = MAX_BUFFER_LEN,
 };
 
 struct bpf_map_def SEC("maps") tcp_buffer_pointer = {
-	.type = BPF_MAP_TYPE_PERCPU_HASH,
+	.type = BPF_MAP_TYPE_PERCPU_ARRAY,
 	.key_size = sizeof(int),
-	.value_size = sizeof(u64),
-	.max_entries = 1024,
+	.value_size = sizeof(u64), //this type is u64 because all array elements are aligned to 8 bytes.
+	.max_entries = 16,
 };
 
 #ifndef BPF_SUPPORTS_RAW_TRACEPOINTS

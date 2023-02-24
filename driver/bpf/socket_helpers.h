@@ -23,6 +23,7 @@ or GPL2.txt for full copies of the license.
 
 #define IP_MF 0x2000
 #define IP_OFFSET 0x1FFF
+#define IP_HOST 0x7F000001
 
 static __always_inline int get_proto_ports_offset(__u64 proto)
 {
@@ -123,25 +124,13 @@ static __always_inline void init_buffer_pointer(u64 **head, u64 **tail, int head
 {
 	*head = bpf_map_lookup_elem(&tcp_buffer_pointer, &head_key);
 	*tail = bpf_map_lookup_elem(&tcp_buffer_pointer, &tail_key);
-	if(unlikely(!(*head) || !(*tail))) //initialize the buffer pointer
-	{
-		u64 val = 0;
-		const char m[] = "initialize head and tail.\n";
-		bpf_trace_printk(m, sizeof(m));
-		bpf_map_update_elem(&tcp_buffer_pointer, &head_key, &val, BPF_ANY);
-		bpf_map_update_elem(&tcp_buffer_pointer, &tail_key, &val, BPF_ANY);
-		*head = bpf_map_lookup_elem(&tcp_buffer_pointer, &head_key);
-		*tail = bpf_map_lookup_elem(&tcp_buffer_pointer, &tail_key);
-	}
 }
-static __always_inline void parse_tcp_handshake(struct sysdig_bpf_settings *settings, struct bpf_flow_keys *flow)
+static __always_inline void parse_tcp_handshake(struct sysdig_bpf_settings *settings, struct bpf_flow_keys *flow, u64 *cur_time)
 {
 	bool SYN = flow->flag & (1 << 1);
 	bool ACK = flow->flag & (1 << 4);
 
 	struct tcp_tuple cur_tuple = new_tuple(flow);
-
-	u64 cur_time = bpf_ktime_get_ns() + settings->boot_time;
 
 	int cpu = bpf_get_smp_processor_id();
 
@@ -149,21 +138,21 @@ static __always_inline void parse_tcp_handshake(struct sysdig_bpf_settings *sett
 	int head_key = TCP_HANDSHAKE_BUFFER_HEAD, tail_key = TCP_HANDSHAKE_BUFFER_TAIL;
 	init_buffer_pointer(&head, &tail, head_key, tail_key);
 
-	if(SYN == 0 && ACK == 1)
+	if(likely(SYN == 0 && ACK == 1))
 	{
 		struct tcp_handshake_rtt *s_rtt = bpf_map_lookup_elem(&tcp_handshake_map, &cur_tuple);
 		//the third handshake
-		if(s_rtt)
+		if(likely(s_rtt))
 		{
-			bpf_printk("third: insert to handshake buffer: synrtt: %llu, ackrtt: %llu, timestamp: %llu\n", s_rtt->synrtt, s_rtt->ackrtt, cur_time);
-			u64 *tail = bpf_map_lookup_elem(&tcp_buffer_pointer, &tail_key);
-			if(tail)
+			bpf_printk("third: insert to handshake buffer: synrtt: %llu, ackrtt: %llu, timestamp: %llu\n", s_rtt->synrtt, s_rtt->ackrtt, *cur_time);
+			tail = bpf_map_lookup_elem(&tcp_buffer_pointer, &tail_key);
+			if(likely(tail))
 			{
 				struct tcp_handshake_buffer_elem cur_elem = {}; 
 				cur_elem.tp = cur_tuple;
 				cur_elem.synrtt = s_rtt->ackrtt - s_rtt->synrtt; //synrtt = second - first
-				cur_elem.ackrtt = cur_time - s_rtt->ackrtt; // ackrtt = third - second
-				cur_elem.timestamp = cur_time;
+				cur_elem.ackrtt = *cur_time - s_rtt->ackrtt; // ackrtt = third - second
+				cur_elem.timestamp = *cur_time;
 				//clear map
 				bpf_map_delete_elem(&tcp_handshake_map, &cur_tuple);
 				bpf_map_update_elem(&tcp_handshake_buffer, tail, &cur_elem, BPF_ANY);
@@ -191,9 +180,9 @@ static __always_inline void parse_tcp_handshake(struct sysdig_bpf_settings *sett
 		if(ACK == 0)
 		{   //the first handshake
 			struct tcp_handshake_rtt f_rtt = {};
-			f_rtt.synrtt = cur_time;
+			f_rtt.synrtt = *cur_time;
 			bpf_map_update_elem(&tcp_handshake_map, &cur_tuple, &f_rtt, BPF_ANY);
-			bpf_printk("first: cur_time: %llu, cpuid = %d\n", cur_time, cpu);
+			bpf_printk("first: cur_time: %llu, cpuid = %d\n", *cur_time, cpu);
 		}
 		else
 		{ 	//the second handshake
@@ -201,8 +190,8 @@ static __always_inline void parse_tcp_handshake(struct sysdig_bpf_settings *sett
 			struct tcp_handshake_rtt *f_rtt = bpf_map_lookup_elem(&tcp_handshake_map, &cur_tuple);
 			if(f_rtt)
 			{
-				f_rtt->ackrtt = cur_time; //update to the second handshake timestamp
-				bpf_printk("second: cur_time: %llu, cpuid = %d\n", cur_time, cpu);
+				f_rtt->ackrtt = *cur_time; //update to the second handshake timestamp
+				bpf_printk("second: cur_time: %llu, cpuid = %d\n", *cur_time, cpu);
 			}
 			else //only drop if not match
 			{
@@ -213,7 +202,7 @@ static __always_inline void parse_tcp_handshake(struct sysdig_bpf_settings *sett
 	}
 }
 
-static __always_inline void parse_tcp_datainfo(struct sysdig_bpf_settings *settings, struct bpf_flow_keys *flow)
+static __always_inline void parse_tcp_datainfo(struct sysdig_bpf_settings *settings, struct bpf_flow_keys *flow, u64 *cur_time)
 {
 	bool SYN = flow->flag & (1 << 1);
 	bool ACK = flow->flag & (1 << 4);
@@ -222,7 +211,7 @@ static __always_inline void parse_tcp_datainfo(struct sysdig_bpf_settings *setti
 	struct tcp_tuple cur_tuple = new_tuple(flow);
 
 	struct tcp_datainfo_last *last_package = bpf_map_lookup_elem(&tcp_datainfo_map, &cur_tuple);
-	if(last_package)
+	if(likely(last_package))
 	{
 		__sync_fetch_and_add(&last_package->package_counts, 1);
 	}
@@ -234,13 +223,13 @@ static __always_inline void parse_tcp_datainfo(struct sysdig_bpf_settings *setti
 		last_package = bpf_map_lookup_elem(&tcp_datainfo_map, &cur_tuple);
 	}
 
-	if(SYN == 0 && ACK == 1)
+	if(likely(SYN == 0 && ACK == 1))
 	{
-		if(FIN == 0)
+		if(likely(FIN == 0))
 		{
 			reverse_tuple(&cur_tuple);
 			struct tcp_datainfo_last *last_rcv_pkg = bpf_map_lookup_elem(&tcp_datainfo_map, &cur_tuple);
-			if(last_package && last_rcv_pkg && last_rcv_pkg->last_fin == 0)
+			if(likely(last_package && last_rcv_pkg && last_rcv_pkg->last_fin == 0))
 			{
 				reverse_tuple(&cur_tuple);
 				u64 *head, *tail;
@@ -251,7 +240,7 @@ static __always_inline void parse_tcp_datainfo(struct sysdig_bpf_settings *setti
 				info.seq = flow->seq;
 				info.ack_seq = flow->ack_seq;
 				info.package_counts = last_package->package_counts;
-				info.timestamp = bpf_ktime_get_ns() + settings->boot_time;
+				info.timestamp = *cur_time;
 				if(tail)
 				{
 					bpf_map_update_elem(&tcp_datainfo_buffer, tail, &info, BPF_ANY);
@@ -283,7 +272,7 @@ static __always_inline void parse_tcp_datainfo(struct sysdig_bpf_settings *setti
 	}
 }
 
-static __always_inline __u64 parse_tcp(struct __sk_buff *skb, __u64 nhoff, __u64 *ip_proto, struct bpf_flow_keys *flow)
+static __always_inline __u64 parse_tcp(struct __sk_buff *skb, __u64 nhoff, __u64 *ip_proto, struct bpf_flow_keys *flow, u64 *cur_time)
 {
 	__u32 seq = load_word(skb, nhoff + offsetof(struct tcphdr, seq));
 	__u32 ack_seq = load_word(skb, nhoff + offsetof(struct tcphdr, ack_seq));
@@ -303,18 +292,20 @@ static __always_inline __u64 parse_tcp(struct __sk_buff *skb, __u64 nhoff, __u64
 	if (!settings || !settings->capture_enabled)
 		return nhoff;
 
-	parse_tcp_handshake(settings, flow); 
+	parse_tcp_handshake(settings, flow, cur_time); 
 
-	//parse_tcp_datainfo(settings, flow); 
+	parse_tcp_datainfo(settings, flow, cur_time); 
 	return nhoff;
 }
 
-static __always_inline bool flow_dissector(struct __sk_buff *skb, struct bpf_flow_keys *flow)
+static __always_inline bool flow_dissector(struct __sk_buff *skb, struct bpf_flow_keys *flow, u64 *cur_time)
 {
 	__u64 nhoff = ETH_HLEN;
 	__u64 ip_proto;
 	__u64 proto = load_half(skb, 12);
 	int poff;
+
+	struct tcp_skb_cb *tcb;
 
 	if(proto == ETH_P_8021AD)
 	{   //deal with ETH VLAN protocol
@@ -337,11 +328,12 @@ static __always_inline bool flow_dissector(struct __sk_buff *skb, struct bpf_flo
 	else
 		return false;
 
+	if(flow->src == IP_HOST || flow->dst == IP_HOST) return true; //host ip filter
 	switch(ip_proto)
 	{
 	case IPPROTO_TCP:
 	{
-		nhoff = parse_tcp(skb, nhoff, &ip_proto, flow);
+		nhoff = parse_tcp(skb, nhoff, &ip_proto, flow, cur_time);
 		break;
 	}
 	default:

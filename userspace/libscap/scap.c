@@ -2748,3 +2748,7 @@ uint64_t get_pid_vtid_map(scap_t *handle, uint64_t pid, uint64_t vtid){
 int32_t scap_get_tcp_handshake_rtt(scap_t* handle, struct tcp_handshake_buffer_elem results[], int *reslen){
 	return scap_bpf_get_tcp_handshake_rtt(handle, results, reslen);
 }
+
+int32_t scap_get_tcp_datainfo(scap_t* handle, struct tcp_datainfo results[], int *reslen){
+	return scap_bpf_get_tcp_datainfo(handle, results, reslen);
+}
