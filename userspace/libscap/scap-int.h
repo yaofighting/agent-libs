@@ -137,6 +137,8 @@ struct scap
 	scap_machine_info m_machine_info;
 	scap_userlist* m_userlist;
 	uint64_t m_buffer_empty_wait_time_us;
+	uint64_t m_tcp_handshake_buffer_empty_wait_time_us;
+	uint64_t m_tcp_packets_buffer_empty_wait_time_us;
 	proc_entry_callback m_proc_callback;
 	void* m_proc_callback_context;
 	struct ppm_proclist_info* m_driver_procinfo;

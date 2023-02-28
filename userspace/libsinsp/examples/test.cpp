@@ -52,7 +52,21 @@ Options:
 //   "evt.dir=< and (evt.category=net or (evt.type=execveat or evt.type=execve or evt.type=clone or evt.type=fork or evt.type=vfork))"
 // 
 
-
+const int max_len = 500000;
+tcp_handshake_buffer_elem *elem = new tcp_handshake_buffer_elem[max_len];
+tcp_datainfo *tcp_data = new tcp_datainfo[max_len];
+void test_tcp_packets_analyzer(sinsp *inspector)
+{
+    int len = 0;
+    tcp_handshake_analyzer hds_analyzer;
+    tcp_packets_analyzer tp_analyzer;
+    int32_t ret = inspector->get_tcp_handshake_rtt(elem, &len, max_len);
+    hds_analyzer.aggregate_handshake_info(elem, &len);  
+        
+    ret = inspector->get_tcp_datainfo(tcp_data, &len, max_len);
+    tp_analyzer.get_total_tcp_packets(tcp_data, &len);
+    tp_analyzer.get_tcp_ack_delay(tcp_data, &len);
+}
 
 int main(int argc, char **argv)
 {
@@ -98,20 +112,6 @@ int main(int argc, char **argv)
         catch(const sinsp_exception &e) {
             cerr << "[ERROR] Unable to set filter: " << e.what() << endl;
         }
-    }
-
-    //tcp test code
-    tcp_handshake_buffer_elem *elem = new tcp_handshake_buffer_elem[500000];
-    tcp_datainfo *tcp_data = new tcp_datainfo[500000];
-    for(int i = 0;i < 3;i++)
-    {
-        int len = 0;
-        sleep(2);
-        //int32_t ret = inspector.get_tcp_handshake_rtt(elem, &len);
-        //test_tcp_handshake_agg(elem, &len);  
-        int32_t ret = inspector.get_tcp_datainfo(tcp_data, &len);
-        get_total_tcp_packets(tcp_data, &len);
-        get_tcp_ack_delay(tcp_data, &len);
     }
 
     while(!g_interrupted)

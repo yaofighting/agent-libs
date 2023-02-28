@@ -315,6 +315,8 @@ scap_t* scap_open_live_int(char *error, int32_t *rc,
 	handle->m_suppressed_tids = NULL;
 	handle->m_num_suppressed_evts = 0;
 	handle->m_buffer_empty_wait_time_us = BUFFER_EMPTY_WAIT_TIME_US_START;
+	handle->m_tcp_handshake_buffer_empty_wait_time_us = BUFFER_EMPTY_WAIT_TIME_US_START;
+	handle->m_tcp_packets_buffer_empty_wait_time_us = BUFFER_EMPTY_WAIT_TIME_US_START;
 
 	if ((*rc = copy_comms(handle, suppressed_comms)) != SCAP_SUCCESS)
 	{
@@ -579,6 +581,8 @@ scap_t* scap_open_udig_int(char *error, int32_t *rc,
 	handle->m_suppressed_tids = NULL;
 	handle->m_num_suppressed_evts = 0;
 	handle->m_buffer_empty_wait_time_us = BUFFER_EMPTY_WAIT_TIME_US_START;
+	handle->m_tcp_handshake_buffer_empty_wait_time_us = BUFFER_EMPTY_WAIT_TIME_US_START;
+	handle->m_tcp_packets_buffer_empty_wait_time_us = BUFFER_EMPTY_WAIT_TIME_US_START;
 
 #ifdef _WIN32
 	handle->m_whh = scap_windows_hal_open(error);
@@ -1331,6 +1335,8 @@ static uint64_t buf_size_used(scap_t* handle, uint32_t cpu)
 
 		get_buf_pointers(handle->m_devs[cpu].m_bufinfo, &thead, &ttail, &read_size);
 	}
+
+	printf("read_size = %d\n, ", read_size);
 
 	return read_size;
 }
@@ -2745,10 +2751,10 @@ uint64_t get_pid_vtid_map(scap_t *handle, uint64_t pid, uint64_t vtid){
 	}
 }
 
-int32_t scap_get_tcp_handshake_rtt(scap_t* handle, struct tcp_handshake_buffer_elem results[], int *reslen){
-	return scap_bpf_get_tcp_handshake_rtt(handle, results, reslen);
+int32_t scap_get_tcp_handshake_rtt(scap_t* handle, struct tcp_handshake_buffer_elem results[], int *reslen, int max_len){
+	return scap_bpf_get_tcp_handshake_rtt(handle, results, reslen, max_len);
 }
 
-int32_t scap_get_tcp_datainfo(scap_t* handle, struct tcp_datainfo results[], int *reslen){
-	return scap_bpf_get_tcp_datainfo(handle, results, reslen);
+int32_t scap_get_tcp_datainfo(scap_t* handle, struct tcp_datainfo results[], int *reslen, int max_len){
+	return scap_bpf_get_tcp_datainfo(handle, results, reslen, max_len);
 }

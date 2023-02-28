@@ -1632,6 +1632,23 @@ int32_t scap_bpf_load(scap_t *handle, const char *bpf_probe)
 		++online_cpu;
 	}
 
+	/*
+		Usually, the BPF_MAP_TYPE_PERCPU_ARRAY will be set to 0 by default, 
+		but in case of a change in the MAP type, 
+		we still initialize it. 
+	*/
+	int pointer;
+	uint64_t buffer_pointers[handle->m_ncpus];
+	memset(buffer_pointers, 0, sizeof(buffer_pointers));
+	for(pointer = 0; pointer < TCP_POINTER_COUNTS; pointer++)
+	{
+		if(bpf_map_update_elem(handle->m_bpf_map_fds[SYSDIG_BUFFER_POINTER], &pointer, buffer_pointers, BPF_ANY) != 0)
+		{
+			snprintf(handle->m_lasterr, SCAP_LASTERR_SIZE, "SYSDIG_BUFFER_POINTER init error.");
+			return SCAP_FAILURE;
+		}
+	}
+
 	if(online_cpu != handle->m_ndevs)
 	{
 		snprintf(handle->m_lasterr, SCAP_LASTERR_SIZE, "processors online: %d, expected: %d", j, handle->m_ndevs);
@@ -1790,12 +1807,12 @@ int32_t scap_bpf_handle_eventmask(scap_t* handle, uint32_t op, uint32_t event_id
 	return SCAP_SUCCESS;
 }
 
-int32_t scap_bpf_get_tcp_handshake_rtt(scap_t* handle, struct tcp_handshake_buffer_elem results[], int *reslen)
+int32_t scap_bpf_get_tcp_handshake_rtt(scap_t* handle, struct tcp_handshake_buffer_elem results[], int *reslen, int max_len)
 {
 	int h = TCP_HANDSHAKE_BUFFER_HEAD, t = TCP_HANDSHAKE_BUFFER_TAIL, i;
 	int count = 0;
-	uint32_t heads[handle->m_ncpus];
-	uint32_t tails[handle->m_ncpus];
+	uint64_t heads[handle->m_ncpus];
+	uint64_t tails[handle->m_ncpus];
 	struct tcp_handshake_buffer_elem elems[handle->m_ncpus];
 
 	if(bpf_map_lookup_elem(handle->m_bpf_map_fds[SYSDIG_BUFFER_POINTER], &h, heads) != 0 
@@ -1807,11 +1824,11 @@ int32_t scap_bpf_get_tcp_handshake_rtt(scap_t* handle, struct tcp_handshake_buff
 
 	for(i = 0;i < handle->m_ncpus; i++)
 	{
-		//printf("CPU id = %d. the number of handshake-rtt: %d, head = %d, tail = %d\n", i, tails[i] - heads[i], heads[i], tails[i]);
+		// printf("CPU id = %d. the number of handshake-rtt: %d, head = %d, tail = %d\n", i, tails[i] - heads[i], heads[i], tails[i]);
 		while(heads[i] != tails[i])
 		{
 			int ret = bpf_map_lookup_elem(handle->m_bpf_map_fds[SYSDIG_HANDSHAKE_BUFFER], &heads[i], elems);
-			if(ret == 0)
+			if(ret == 0 && count < max_len)
 			{
 				// printf("heads[i]: %d, src: %d, dst: %d, sport: %d, dport: %d, synrtt: %u, ackrtt: %u, timestamp: %llu\n", heads[i], elems[i].tp.saddr, elems[i].tp.daddr, elems[i].tp.sport, elems[i].tp.dport, 
 				// 	elems[i].synrtt, elems[i].ackrtt, elems[i].timestamp);
@@ -1825,11 +1842,25 @@ int32_t scap_bpf_get_tcp_handshake_rtt(scap_t* handle, struct tcp_handshake_buff
 		}	
 	}
 	*reslen = count;
+	if(count < BUFFER_EMPTY_THRESHOLD_B)
+	{
+#ifdef _WIN32
+		Sleep((DWORD)handle->m_tcp_handshake_buffer_empty_wait_time_us / 1000);
+#else
+		usleep(handle->m_tcp_handshake_buffer_empty_wait_time_us);
+#endif
+		handle->m_tcp_handshake_buffer_empty_wait_time_us = MIN(handle->m_tcp_handshake_buffer_empty_wait_time_us * 2,
+							  BUFFER_EMPTY_WAIT_TIME_US_MAX);
+	}
+	else
+	{
+		handle->m_tcp_handshake_buffer_empty_wait_time_us = BUFFER_EMPTY_WAIT_TIME_US_START;
+	}
 	if(bpf_map_update_elem(handle->m_bpf_map_fds[SYSDIG_BUFFER_POINTER], &h, heads, BPF_ANY) != 0)
 	{
 		snprintf(handle->m_lasterr, SCAP_LASTERR_SIZE, "SYSDIG_BUFFER_POINTER bpf_map_update_elem < 0");
 		return SCAP_FAILURE;
-	}
+	}	
 	return SCAP_SUCCESS;
 }
 
@@ -1857,7 +1888,8 @@ int32_t scap_bpf_select_earliest_tcpdata(scap_t* handle, int heads[], int tails[
 	heads[min_cpu] = (heads[min_cpu] + 1) % MAX_BUFFER_LEN;
 	return 0;
 } 
-int32_t scap_bpf_get_tcp_datainfo(scap_t* handle, struct tcp_datainfo results[], int *reslen)
+
+int32_t scap_bpf_get_tcp_datainfo(scap_t* handle, struct tcp_datainfo results[], int *reslen, int max_len)
 {
 	int h = TCP_DATAINFO_BUFFER_HEAD, t = TCP_DATAINFO_BUFFER_TAIL, i;
 
@@ -1874,10 +1906,31 @@ int32_t scap_bpf_get_tcp_datainfo(scap_t* handle, struct tcp_datainfo results[],
 		return SCAP_NOTFOUND;
 	}
 
-	while(scap_bpf_select_earliest_tcpdata(handle, heads, tails, elems, &results[count++]) != -1);
+	while(scap_bpf_select_earliest_tcpdata(handle, heads, tails, elems, &results[count]) != -1)
+	{
+		count++;
+		if(count >= max_len)
+		{
+			break;
+		}
+	}
 
-	*reslen = count - 1;
+	*reslen = count;
 
+	if(count < BUFFER_EMPTY_THRESHOLD_B)
+	{
+#ifdef _WIN32
+		Sleep((DWORD)handle->m_tcp_packets_buffer_empty_wait_time_us / 1000);
+#else
+		usleep(handle->m_tcp_packets_buffer_empty_wait_time_us);
+#endif
+		handle->m_tcp_packets_buffer_empty_wait_time_us = MIN(handle->m_tcp_packets_buffer_empty_wait_time_us * 2,
+							  BUFFER_EMPTY_WAIT_TIME_US_MAX);
+	}
+	else
+	{
+		handle->m_tcp_packets_buffer_empty_wait_time_us = BUFFER_EMPTY_WAIT_TIME_US_START;
+	}
 	if(bpf_map_update_elem(handle->m_bpf_map_fds[SYSDIG_BUFFER_POINTER], &h, heads, BPF_ANY) != 0)
 	{
 		snprintf(handle->m_lasterr, SCAP_LASTERR_SIZE, "SYSDIG_BUFFER_POINTER bpf_map_update_elem < 0");
