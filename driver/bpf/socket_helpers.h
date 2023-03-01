@@ -281,7 +281,7 @@ static __always_inline __u64 parse_tcp(struct __sk_buff *skb, __u64 nhoff, __u64
 	flow->ack_seq = ack_seq;
 	flow->flag = flag;
 
-	int poff = get_proto_ports_offset(ip_proto);
+	int poff = get_proto_ports_offset(*ip_proto);
 	if(poff >= 0)
 	{
 		nhoff += poff;

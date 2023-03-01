@@ -1336,8 +1336,6 @@ static uint64_t buf_size_used(scap_t* handle, uint32_t cpu)
 		get_buf_pointers(handle->m_devs[cpu].m_bufinfo, &thead, &ttail, &read_size);
 	}
 
-	printf("read_size = %d\n, ", read_size);
-
 	return read_size;
 }
 
