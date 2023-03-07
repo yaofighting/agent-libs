@@ -43,12 +43,12 @@ static __always_inline int get_proto_ports_offset(__u64 proto)
 	}
 }
 
-static __always_inline int ip_is_fragment(struct __sk_buff *ctx, __u64 nhoff)
+static __always_inline int is_ip_fragment(struct __sk_buff *ctx, __u64 nhoff)
 {
 	return load_half(ctx, nhoff + offsetof(struct iphdr, frag_off)) & (IP_MF | IP_OFFSET);
 }
 
-static __always_inline __u32 ipv6_addr_hash(struct __sk_buff *ctx, __u64 off)
+static __always_inline __u32 ipv6addr_hash(struct __sk_buff *ctx, __u64 off)
 {
 	__u64 w0 = load_word(ctx, off);
 	__u64 w1 = load_word(ctx, off + 4);
@@ -63,7 +63,7 @@ static __always_inline __u64 parse_ip(struct __sk_buff *skb, __u64 nhoff, __u64 
 {
 	__u64 verlen;
 
-	if(unlikely(ip_is_fragment(skb, nhoff))) 
+	if(unlikely(is_ip_fragment(skb, nhoff))) 
 		*ip_proto = 0;
 	else
 		*ip_proto = load_byte(skb, nhoff + offsetof(struct iphdr, protocol));
@@ -88,9 +88,9 @@ static __always_inline __u64 parse_ipv6(struct __sk_buff *skb, __u64 nhoff, __u6
 {
 	*ip_proto = load_byte(skb,
 			      nhoff + offsetof(struct ipv6hdr, nexthdr));
-	flow->src = ipv6_addr_hash(skb,
+	flow->src = ipv6addr_hash(skb,
 				   nhoff + offsetof(struct ipv6hdr, saddr));
-	flow->dst = ipv6_addr_hash(skb,
+	flow->dst = ipv6addr_hash(skb,
 				   nhoff + offsetof(struct ipv6hdr, daddr));
 	nhoff += sizeof(struct ipv6hdr);
 
