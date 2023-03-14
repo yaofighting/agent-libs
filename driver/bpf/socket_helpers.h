@@ -117,6 +117,7 @@ static __always_inline struct tcp_tuple new_tuple(struct bpf_flow_keys *flow)
 	cur_tuple.dport = flow->port16[0];
 	cur_tuple.saddr = flow->src;
 	cur_tuple.daddr = flow->dst;
+	cur_tuple.ifindex = flow->ifindex;
 	return cur_tuple;
 }
 
@@ -329,6 +330,59 @@ static __always_inline bool flow_dissector(struct __sk_buff *skb, struct bpf_flo
 		return false;
 
 	if(flow->src == IP_HOST || flow->dst == IP_HOST) return true; //host ip filter
+	flow->ifindex = skb->ifindex;
+
+	switch (ip_proto) {
+		case IPPROTO_GRE: {
+			struct gre_hdr {
+				__be16 flags;
+				__be16 proto;
+			};
+
+			__u64 gre_flags = load_half(skb,
+						    nhoff + offsetof(struct gre_hdr, flags));
+			__u64 gre_proto = load_half(skb,
+						    nhoff + offsetof(struct gre_hdr, proto));
+
+			if (gre_flags & (GRE_VERSION|GRE_ROUTING))
+				break;
+
+			proto = gre_proto;
+			nhoff += 4;
+			if (gre_flags & GRE_CSUM)
+				nhoff += 4;
+			if (gre_flags & GRE_KEY)
+				nhoff += 4;
+			if (gre_flags & GRE_SEQ)
+				nhoff += 4;
+
+			if (proto == ETH_P_8021Q) {
+				proto = load_half(skb,
+						  nhoff + offsetof(struct my_vlan_hdr,
+								   h_vlan_encapsulated_proto));
+				nhoff += sizeof(struct my_vlan_hdr);
+			}
+
+			if (proto == ETH_P_IP)
+				nhoff = parse_ip(skb, nhoff, &ip_proto, flow);
+			else if (proto == ETH_P_IPV6)
+				nhoff = parse_ipv6(skb, nhoff, &ip_proto, flow);
+			else
+				return false;
+			break;
+		}
+		case IPPROTO_IPIP:{
+			nhoff = parse_ip(skb, nhoff, &ip_proto, flow);
+			break;
+		}
+		case IPPROTO_IPV6:{
+			nhoff = parse_ipv6(skb, nhoff, &ip_proto, flow);
+			break;
+		}
+		default:
+			break;
+	}
+
 	switch(ip_proto)
 	{
 	case IPPROTO_TCP:

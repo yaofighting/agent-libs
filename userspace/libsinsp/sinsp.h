@@ -910,6 +910,7 @@ public:
 
 	static unsigned num_possible_cpus();
 
+	int32_t init_focus_network_interface(int ifindex[]);
 	int32_t get_tcp_handshake_rtt(tcp_handshake_buffer_elem results[], int *reslen, int max_len);
 	int32_t get_tcp_datainfo(tcp_datainfo results[], int *resLen, int max_len);
 

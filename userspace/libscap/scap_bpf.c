@@ -1807,6 +1807,22 @@ int32_t scap_bpf_handle_eventmask(scap_t* handle, uint32_t op, uint32_t event_id
 	return SCAP_SUCCESS;
 }
 
+int32_t scap_bpf_init_focus_network_interface(scap_t* handle, int ifindex[])
+{
+	int count = 0;
+	uint64_t val = 1;
+	while(ifindex[count] != -1)
+	{
+		if(bpf_map_update_elem(handle->m_bpf_map_fds[SYSDIG_FOCUS_NETWORK_INTERFACE], &ifindex[count], &val, BPF_ANY) != 0)
+		{
+			snprintf(handle->m_lasterr, SCAP_LASTERR_SIZE, "SYSDIG_FOCUS_NETWORK_INTERFACE bpf_map_update_elem < 0");
+			return SCAP_FAILURE;
+		}	
+		count++;
+	}
+	return SCAP_SUCCESS;
+}
+
 int32_t scap_bpf_get_tcp_handshake_rtt(scap_t* handle, struct tcp_handshake_buffer_elem results[], int *reslen, int max_len)
 {
 	int h = TCP_HANDSHAKE_BUFFER_HEAD, t = TCP_HANDSHAKE_BUFFER_TAIL, i;
@@ -1833,6 +1849,7 @@ int32_t scap_bpf_get_tcp_handshake_rtt(scap_t* handle, struct tcp_handshake_buff
 				// printf("heads[i]: %d, src: %d, dst: %d, sport: %d, dport: %d, synrtt: %u, ackrtt: %u, timestamp: %llu\n", heads[i], elems[i].tp.saddr, elems[i].tp.daddr, elems[i].tp.sport, elems[i].tp.dport, 
 				// 	elems[i].synrtt, elems[i].ackrtt, elems[i].timestamp);
 				results[count++] = elems[i];
+				if(elems[i].timestamp == 0) printf("error_time 0\n");
 				heads[i] = (heads[i] + 1) % MAX_BUFFER_LEN;	
 			}
 			else
@@ -1873,8 +1890,9 @@ int32_t scap_bpf_select_earliest_tcpdata(scap_t* handle, int heads[], int tails[
 	{
 		if(heads[i] != tails[i] && bpf_map_lookup_elem(handle->m_bpf_map_fds[SYSDIG_TCP_DATAINFO_BUFFER], &heads[i], elems) == 0)
 		{
-			if(elems[i].timestamp < min_time)
+			if(elems[i].timestamp > 0 && elems[i].timestamp < min_time)
 			{
+				//printf("timestamp: %llu\n", elems[i].timestamp);
 				min_time = elems[i].timestamp;
 				min_cpu = i;
 				*tf = elems[i];
@@ -1886,6 +1904,7 @@ int32_t scap_bpf_select_earliest_tcpdata(scap_t* handle, int heads[], int tails[
 		return -1;
 	}
 	heads[min_cpu] = (heads[min_cpu] + 1) % MAX_BUFFER_LEN;
+	// printf("get data from cpu = %d, heads[i] = %d, tails[i] = %d\n", min_cpu, heads[min_cpu], tails[min_cpu]);
 	return 0;
 } 
 

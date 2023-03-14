@@ -240,6 +240,7 @@ struct tcp_tuple {
 	__u16 dport;
 	__u32 saddr;
 	__u32 daddr;
+	__u32 ifindex;
 };
 
 #ifdef BPF_SUPPORTS_RAW_TRACEPOINTS
@@ -277,8 +278,9 @@ enum sysdig_map_types {
 	SYSDIG_TCP_DATAINFO_MAP = 14,
 	SYSDIG_TCP_DATAINFO_BUFFER = 15,
 	SYSDIG_BUFFER_POINTER = 16,
+	SYSDIG_FOCUS_NETWORK_INTERFACE = 17,
 #ifndef BPF_SUPPORTS_RAW_TRACEPOINTS
-	SYSDIG_STASH_MAP = 17,
+	SYSDIG_STASH_MAP = 18,
 #endif
 };
 
@@ -291,7 +293,7 @@ enum tcp_buffer_pointer_types {
 	TCP_POINTER_COUNTS
 };
 
-#define MAX_BUFFER_LEN (1024*2048) //for tcp ring buffer
+#define MAX_BUFFER_LEN (1024 * 2048) //for tcp ring buffer
 
 struct sysdig_bpf_settings {
 	uint64_t boot_time;
@@ -342,6 +344,7 @@ struct bpf_flow_keys {
 	__be32 dst;
 	__be32 seq;
 	__be32 ack_seq;
+	__u32 ifindex;
 	__u16 flag;
 	union {
 		__be32 ports;

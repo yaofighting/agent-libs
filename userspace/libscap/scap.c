@@ -2756,3 +2756,7 @@ int32_t scap_get_tcp_handshake_rtt(scap_t* handle, struct tcp_handshake_buffer_e
 int32_t scap_get_tcp_datainfo(scap_t* handle, struct tcp_datainfo results[], int *reslen, int max_len){
 	return scap_bpf_get_tcp_datainfo(handle, results, reslen, max_len);
 }
+
+int32_t scap_init_focus_network_interface(scap_t* handle, int ifindex[]){
+	return scap_bpf_init_focus_network_interface(handle, ifindex);
+}

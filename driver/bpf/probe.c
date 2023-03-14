@@ -769,6 +769,11 @@ BPF_SOCKET_PROBE(tcp_analysis)
 	if (evt_type < PPM_EVENT_MAX && !settings->events_mask[evt_type]) {
 		return 0;
 	}
+	u32 ifindex = skb->ifindex;
+	u64 *focus_ifindex = bpf_map_lookup_elem(&focus_network_interface, &ifindex);
+	if(!focus_ifindex){
+		return 0;
+	}
 	
 	struct bpf_flow_keys flow = {};
 	u64 cur_time = bpf_ktime_get_ns() + settings->boot_time;

@@ -1124,6 +1124,19 @@ void sinsp::get_procs_cpu_from_driver(uint64_t ts)
 	}
 }
 
+int32_t sinsp::init_focus_network_interface(int ifindex[])
+{
+#if defined(HAS_CAPTURE) && ! defined(CYGWING_AGENT) && ! defined(_WIN32)
+	if(is_live() && m_h != NULL)
+	{
+		int32_t ret = scap_init_focus_network_interface(m_h, ifindex);
+		if(ret != SCAP_SUCCESS)
+			return -1;
+		return 0;
+	}
+#endif
+}
+
 
 int32_t sinsp::get_tcp_handshake_rtt(tcp_handshake_buffer_elem results[], int *reslen, int max_len)
 {

@@ -1,10 +1,52 @@
 #include "tcp_package_test.h"
 
-void tcp_analyer_base::init_host_map()
+#define PROC_NET_ROUTE "/proc/net/route"
+void tcp_analyer_base::init_virtual_interface_ip()
+{
+	char line[512] = {};
+	FILE *fp = NULL;
+    fp = fopen(PROC_NET_ROUTE, "r");
+    if(fp == NULL) return;
+
+    bool first_line = true;
+    char *delimiters = " \t";
+    char *token;
+
+    while(fgets(line, sizeof(line), fp))
+    {
+        char *scratch;
+        if(first_line) //skip the first line
+        {
+            first_line = false;
+            continue;
+        }
+
+        // interface
+        token = strtok_r(line, delimiters, &scratch);
+        if(token && strncmp(token, "veth", 4) == 0 || strncmp(token, "cali",4) == 0)
+        {
+			uint32_t ifindex = if_nametoindex(token);
+			// Destination
+        	token = strtok_r(NULL, delimiters, &scratch);
+        	if(token)
+        	{
+				char *end;
+        		uint32_t ip = strtoul(token, &end, 16);
+        		ip = ntohl(ip);
+				host_map[ip] = ifindex;
+        	}
+        }
+    }
+	fclose(fp);
+}
+
+void tcp_analyer_base::init_host_ip()
 {
     struct ifaddrs *ifaddr, *ifa;
-	int family, s;
+	struct ifreq ifr;
+	int family, s, ifcount = 0;
 	char host[NI_MAXHOST];
+	int container_interface[1024];
 
 	if(getifaddrs(&ifaddr) == -1)
 	{
@@ -19,25 +61,36 @@ void tcp_analyer_base::init_host_map()
 
 		family = ifa->ifa_addr->sa_family;
 
-		if(!strcmp(ifa->ifa_name, "lo"))
+		if(!strcmp(ifa->ifa_name, "lo")) //filter out localhost/127.0.0.1
 			continue;
-		if(family == AF_INET || family == AF_INET6)
+
+		if(!strncmp(ifa->ifa_name, "veth", 4) || !strncmp(ifa->ifa_name, "cali", 4))
 		{
-			s = getnameinfo(ifa->ifa_addr, (family == AF_INET) ? sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6), host, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
+			container_interface[ifcount++] = if_nametoindex(ifa->ifa_name);
+		}
+
+		if(family == AF_INET)
+		{
+			s = getnameinfo(ifa->ifa_addr, sizeof(struct sockaddr_in), host, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
 			string str_ip = host;
 			uint32_t ip = ipv4string_to_int(str_ip);
-			host_map[ip] = true;
+			host_map[ip] = if_nametoindex(ifa->ifa_name);
 		}
 	}
+	container_interface[ifcount] = -1;
+	//init container network interface map
+	inspector->init_focus_network_interface(container_interface);
+	//init virtual interface info (ip, ifindex)
+	init_virtual_interface_ip();
 	freeifaddrs(ifaddr);
 }
 
-bool tcp_analyer_base::is_host_ip(uint32_t ip_int)
+uint32_t tcp_analyer_base::get_interface_by_ip(uint32_t ip_int)
 {
     return host_map[ip_int];
 }
 
-void tcp_analyer_base::ipv4_int_to_str(int ip, char ip_str[])
+void tcp_analyer_base::ipv4_int_to_str(uint32_t ip, char ip_str[])
 {
     int a = ip / (1 << 24) % (1 << 8);
 	int b = ip / (1 << 16) % (1 << 8);
@@ -53,12 +106,14 @@ tcp_tuple tcp_analyer_base::get_reverse_tuple(tcp_tuple *tp)
 	rtp.daddr = tp->saddr;
 	rtp.sport = tp->dport;
 	rtp.dport = tp->sport;
+	rtp.ifindex = tp->ifindex;
 	return rtp;
 }
 
-tcp_handshake_analyzer::tcp_handshake_analyzer()
+tcp_handshake_analyzer::tcp_handshake_analyzer(sinsp *inspector)
 {
-    init_host_map();
+	this->inspector = inspector;
+    init_host_ip();
 }
 
 void tcp_handshake_analyzer::aggregate_handshake_info(tcp_handshake_buffer_elem *results, int *reslen)
@@ -66,12 +121,13 @@ void tcp_handshake_analyzer::aggregate_handshake_info(tcp_handshake_buffer_elem 
 	//cout << "the total number of tcp handshake data: " << *reslen << endl;
 	for(int i = 0; i < *reslen; i++)
 	{
-		agg_triple_key k = {results[i].tp.dport, results[i].tp.saddr, results[i].tp.daddr};
-		map_ptr = handshake_agg_map.find(k);
+		if(results[i].timestamp == 0) continue;
+		//agg_tcp_key k = {results[i].tp.sport, results[i].tp.dport, results[i].tp.saddr, results[i].tp.daddr, results[i].tp.ifindex};
+		map_ptr = handshake_agg_map.find(results[i].tp);
 		if(map_ptr == handshake_agg_map.end())
 		{
 			agg_handshake_rtt_value val = {1, results[i].synrtt, results[i].ackrtt, results[i].timestamp, results[i].timestamp};
-			handshake_agg_map[k] = val;
+			handshake_agg_map[results[i].tp] = val;
 		}
 		else
 		{
@@ -86,55 +142,52 @@ void tcp_handshake_analyzer::aggregate_handshake_info(tcp_handshake_buffer_elem 
 	{
         ipv4_int_to_str(e.first.saddr, sip_str);
         ipv4_int_to_str(e.first.daddr, dip_str);
-		if(is_host_ip(e.first.saddr))
+		if(get_interface_by_ip(e.first.saddr) == e.first.ifindex)
 		{
 			e.second.ackrtt_delta = -1; //If host a client, ackrtt is invalid
 		}
-		else
+		else if(get_interface_by_ip(e.first.daddr) == e.first.ifindex)
 		{
 			e.second.synrtt_delta = -1; //If host a server, synrtt is invalid
 		}
-		// cout << "src_ip: " << sip_str << "  dst_ip: " <<  dip_str << "  dst_port: " << e.first.dport
+		// cout << "src_ip: " << sip_str << "  dst_ip: " <<  dip_str << "  src_port: " << e.first.sport << "  dst_port: " << e.first.dport
 		//     << "  data_counts: " << e.second.data_counts << "  synrtt_delta: " << e.second.synrtt_delta << "  ackrtt_delta: " << e.second.ackrtt_delta
-		//     << "  start_time: " << e.second.start_time << "  end_time: " << e.second.end_time << endl;
+		//     << "  start_time: " << e.second.start_time << "  end_time: " << e.second.end_time << "  ifindex: " << e.first.ifindex << endl;
 	}
 }
 
-tcp_packets_analyzer::tcp_packets_analyzer()
+tcp_packets_analyzer::tcp_packets_analyzer(sinsp *inspector)
 {
-    init_host_map();
+	this->inspector = inspector;
+    init_host_ip();
 }
 
 void tcp_packets_analyzer::get_total_tcp_packets(tcp_datainfo *results, int *reslen)
 {
 	for(int i = 0; i < *reslen; i++)
 	{
-		quadruples_total_map[results[i].tp] = quadruples_total_map[results[i].tp] > results[i].package_counts ? quadruples_total_map[results[i].tp] : results[i].package_counts;
-	}
-	for(auto &e : quadruples_total_map)
-	{
-		agg_iptuple_key agg_key = agg_iptuple_key{e.first.saddr, e.first.daddr};
-        if(iptuples_total_map.find(agg_key) == iptuples_total_map.end())
-        {
-            packets_total agg_val = packets_total{e.second, 0};
-            if(is_host_ip(e.first.saddr))
-            {
-                agg_val.direction_type = 1;
-            }
-		    iptuples_total_map[agg_key] = agg_val;
-        }
-        else
-        {
-            iptuples_total_map[agg_key].total_counts += e.second;
-        }
+		if(results[i].timestamp == 0) continue;
+		if(quadruples_total_map.find(results[i].tp) == quadruples_total_map.end())
+		{
+			packets_total pt = packets_total{results[i].package_counts, 0};
+			if(get_interface_by_ip(results[i].tp.saddr) == results[i].tp.ifindex)
+			{
+				pt.direction_type = 1;
+			}
+			quadruples_total_map[results[i].tp] = pt;
+		}
+		else
+		{
+			quadruples_total_map[results[i].tp].total_counts = quadruples_total_map[results[i].tp].total_counts > results[i].package_counts ? quadruples_total_map[results[i].tp].total_counts : results[i].package_counts;
+		}
 	}
 	char sip_str[20], dip_str[20];
-	for(auto &e : iptuples_total_map)
+	for(auto &e : quadruples_total_map)
 	{
 		ipv4_int_to_str(e.first.saddr, sip_str);
     	ipv4_int_to_str(e.first.daddr, dip_str);
-		// cout << "src_ip: " << sip_str << "  dst_ip: " << dip_str
-		//      << " packet_counts: " << e.second.total_counts << " directionType: " << e.second.direction_type << endl;
+		// cout << "src_ip: " << sip_str << "  sport: " << e.first.sport << "  dst_ip: " << dip_str << "  dport: " << e.first.dport
+		//      << "  ifindex: " << e.first.ifindex << "  packet_counts: " << e.second.total_counts << "  directionType: " << e.second.direction_type << endl;
 	}
 }
 void tcp_packets_analyzer::get_tcp_ack_delay(tcp_datainfo *results, int *reslen)
@@ -143,7 +196,8 @@ void tcp_packets_analyzer::get_tcp_ack_delay(tcp_datainfo *results, int *reslen)
 	//cout << "the total number of tcp data: " << *reslen << endl;
 	for(i = 0; i < *reslen; i++)
 	{
-		if(!is_host_ip(results[i].tp.saddr))
+		if(results[i].timestamp == 0) continue;
+		if(get_interface_by_ip(results[i].tp.saddr) != results[i].tp.ifindex)
 		{
 			ack_match_queue_map[results[i].tp].push(&results[i]);
 			continue; //only calculate src(host) ---> dst
@@ -163,12 +217,12 @@ void tcp_packets_analyzer::get_tcp_ack_delay(tcp_datainfo *results, int *reslen)
 			}
 			if(pre)
 			{
-				agg_iptuple_key agg_key = agg_iptuple_key{results[i].tp.saddr, results[i].tp.daddr};
-				if(ack_delay_map.find(agg_key) == ack_delay_map.end())
+				//agg_tcp_key agg_key = agg_iptuple_key{results[i].tp.saddr, results[i].tp.daddr};
+				if(ack_delay_map.find(results[i].tp) == ack_delay_map.end())
 				{
-					ack_delay_map.emplace(piecewise_construct, forward_as_tuple(agg_key), forward_as_tuple(results[i].timestamp)); //construct in place
+					ack_delay_map.emplace(piecewise_construct, forward_as_tuple(results[i].tp), forward_as_tuple(results[i].timestamp)); //construct in place
 				}
-				dmap_ptr = ack_delay_map.find(agg_key);
+				dmap_ptr = ack_delay_map.find(results[i].tp);
 				dmap_ptr->second.acktime_delta += results[i].timestamp - pre->timestamp;
 				dmap_ptr->second.data_counts++;
 				dmap_ptr->second.end_time = results[i].timestamp;
@@ -181,7 +235,7 @@ void tcp_packets_analyzer::get_tcp_ack_delay(tcp_datainfo *results, int *reslen)
 	{
         ipv4_int_to_str(e.first.saddr, sip_str);
         ipv4_int_to_str(e.first.daddr, dip_str);
-		// cout << "src_ip: " << sip_str << "  dst_ip: " << dip_str
+		// cout << "src_ip: " << sip_str << "  sport: " << e.first.sport << "  dst_ip: " << dip_str << "  dport: " << e.first.dport
 		//      << "  data_counts: " << e.second.data_counts << "  acktime_delta: " << e.second.acktime_delta
 		//      << "  start_time: " << e.second.start_time << "  end_time: " << e.second.end_time << endl;
 	}

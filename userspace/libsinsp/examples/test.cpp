@@ -58,8 +58,8 @@ tcp_datainfo *tcp_data = new tcp_datainfo[max_len];
 void test_tcp_packets_analyzer(sinsp *inspector)
 {
     int len = 0;
-    tcp_handshake_analyzer hds_analyzer;
-    tcp_packets_analyzer tp_analyzer;
+    tcp_handshake_analyzer hds_analyzer(inspector);
+    tcp_packets_analyzer tp_analyzer(inspector);
     int32_t ret = inspector->get_tcp_handshake_rtt(elem, &len, max_len);
     hds_analyzer.aggregate_handshake_info(elem, &len);  
         
@@ -113,6 +113,12 @@ int main(int argc, char **argv)
             cerr << "[ERROR] Unable to set filter: " << e.what() << endl;
         }
     }
+
+    // for(int i=0;i<20;i++){
+    //     test_tcp_packets_analyzer(&inspector);
+    //     cout << endl << "------------------------" << endl;
+    //     sleep(1);
+    // }
 
     while(!g_interrupted)
     {

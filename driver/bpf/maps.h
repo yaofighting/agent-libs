@@ -19,7 +19,7 @@ struct bpf_map_def {
 	unsigned int numa_node;
 };
 
-#define MAX_BUFFER_LEN (1024*2048)
+#define MAX_BUFFER_LEN (1024 * 2048)
 
 #ifdef __KERNEL__
 struct bpf_map_def __bpf_section("maps") perf_map = {
@@ -140,6 +140,13 @@ struct bpf_map_def SEC("maps") tcp_buffer_pointer = {
 	.key_size = sizeof(int),
 	.value_size = sizeof(u64), //this type is u64 because all array elements are aligned to 8 bytes.
 	.max_entries = 16,
+};
+
+struct bpf_map_def SEC("maps") focus_network_interface = {
+	.type = BPF_MAP_TYPE_HASH,
+	.key_size = sizeof(u32),
+	.value_size = sizeof(u64),  
+	.max_entries = 65535,
 };
 
 #ifndef BPF_SUPPORTS_RAW_TRACEPOINTS
