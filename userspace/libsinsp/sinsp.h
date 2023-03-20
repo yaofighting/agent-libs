@@ -893,10 +893,8 @@ public:
 	void remove_meta_event_callback();
 	void filter_proc_table_when_saving(bool filter);
 	void enable_tracers_capture();
-	void clear_page_faults_map();
+	int32_t get_page_faults_from_map(uint64_t last_time, uint64_t cur_time, struct pagefault_data results[], int32_t *counts);
 	void enable_page_faults();
-	int get_pagefault_threads_number();
-	void update_pagefaults_threads_number(int tid, unsigned long val);
 	uint64_t get_bytes_read()
 	{
 		return scap_ftell(m_h);

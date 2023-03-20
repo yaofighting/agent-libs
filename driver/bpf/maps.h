@@ -105,10 +105,10 @@ struct bpf_map_def __bpf_section("maps") stash_tuple_map = {
 	.max_entries = 65535,
 };
 
-struct bpf_map_def __bpf_section("maps") pgft_major_map = {
+struct bpf_map_def __bpf_section("maps") pagefault_map = {
 	.type = BPF_MAP_TYPE_HASH,
 	.key_size = sizeof(pid_t),
-	.value_size = sizeof(u64),
+	.value_size = sizeof(struct pagefault_data),
 	.max_entries = 1048576,
 };
 

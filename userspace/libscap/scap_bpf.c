@@ -862,8 +862,17 @@ static int32_t load_bpf_file(scap_t *handle, const char *path)
 		   memcmp(shname, "raw_tracepoint/", sizeof("raw_tracepoint/") - 1) == 0 ||
 		   memcmp(shname, "kprobe/", sizeof("kprobe/") - 1) == 0 ||
 		   memcmp(shname, "kretprobe/", sizeof("kretprobe/") - 1) == 0)
-		{
-			int load_result = load_tracepoint(handle, shname, data->d_buf, data->d_size);
+		{	
+			//Handling multiple programs on the same hook point
+			char event[100];
+			strcpy(event, shname);
+			int len = strlen(event);
+			if(len >= 9 && strncmp(&event[len - 9], "_multiple", 9) == 0)
+			{
+				event[len - 9] = '\0';
+			}
+
+			int load_result = load_tracepoint(handle, event, data->d_buf, data->d_size);
 			if((memcmp(shname, "kprobe/", sizeof("kprobe/") - 1) == 0 ||
 			    memcmp(shname, "kretprobe/", sizeof("kretprobe/") - 1) == 0) &&
 			   load_result == SCAP_UNKNOWN_KPROBE)
@@ -1244,71 +1253,31 @@ int32_t scap_bpf_enable_dynamic_snaplen(scap_t* handle)
 
 	return SCAP_SUCCESS;
 }
-int32_t scap_bpf_clear_pagefault_map(scap_t* handle){
-	struct sysdig_bpf_settings settings;
-	int k = 0;
 
-	if(bpf_map_lookup_elem(handle->m_bpf_map_fds[SYSDIG_SETTINGS_MAP], &k, &settings) != 0)
-	{
-		snprintf(handle->m_lasterr, SCAP_LASTERR_SIZE, "SYSDIG_SETTINGS_MAP bpf_map_lookup_elem < 0");
-		return SCAP_FAILURE;
-	}
-
-	// start to clear map & set the mutex 
-	settings.pgft_map_clear = true;
-	if(bpf_map_update_elem(handle->m_bpf_map_fds[SYSDIG_SETTINGS_MAP], &k, &settings, BPF_ANY) != 0)
-	{
-		snprintf(handle->m_lasterr, SCAP_LASTERR_SIZE, "SYSDIG_SETTINGS_MAP bpf_map_update_elem < 0");
-		return SCAP_FAILURE;
-	}
-
-
+/*
+		    						 |last_time|--------scan_interval--------|cur_time|
+	A(ignore): |pagefault.timestamp|
+	B(catch): 					  		   			 |pagefault.timestamp|
+*/
+int32_t scap_bpf_get_page_faults_from_map(scap_t* handle, uint64_t last_time, uint64_t cur_time, struct pagefault_data results[], int32_t *counts)
+{
 	int next_key, lookup_key;
 	lookup_key = -1;
-	while(bpf_map_get_next_key(handle->m_bpf_map_fds[SYSDIG_PAGEFAULT_MAJOR_MAP], &lookup_key, &next_key) == 0){
-		bpf_map_delete_elem(handle->m_bpf_map_fds[SYSDIG_PAGEFAULT_MAJOR_MAP], &next_key);
+	int32_t cnt = 0;
+	while(bpf_map_get_next_key(handle->m_bpf_map_fds[SYSDIG_PAGEFAULT_MAP], &lookup_key, &next_key) == 0){
+		if(bpf_map_lookup_elem(handle->m_bpf_map_fds[SYSDIG_PAGEFAULT_MAP], &next_key, &results[cnt]) != 0){
+			snprintf(handle->m_lasterr, SCAP_LASTERR_SIZE, "SYSDIG_PAGEFAULT_MAP bpf_map_lookup_elem < 0");
+			return SCAP_FAILURE;
+		}
+		if(results[cnt].timestamp > last_time  && results[cnt].timestamp <= cur_time) {
+			cnt++;
+		}
 		lookup_key = next_key;
 	}
-
-	// end up to clear map & clear the mutex
-	settings.pgft_map_clear = false;
-	if(bpf_map_update_elem(handle->m_bpf_map_fds[SYSDIG_SETTINGS_MAP], &k, &settings, BPF_ANY) != 0)
-	{
-		snprintf(handle->m_lasterr, SCAP_LASTERR_SIZE, "SYSDIG_SETTINGS_MAP bpf_map_update_elem < 0");
-		return SCAP_FAILURE;
-	}
-
-	
-	k = -1;
-	unsigned long val = 0;
-
-	if(bpf_map_update_elem(handle->m_bpf_map_fds[SYSDIG_PAGEFAULT_MAJOR_MAP], &k, &val, BPF_ANY) != 0)
-	{
-		snprintf(handle->m_lasterr, SCAP_LASTERR_SIZE, "SYSDIG_PAGEFAULT_MAJOR_MAP bpf_map_update_elem < 0");
-		return SCAP_FAILURE;
-	}
-
+	*counts = cnt;
 	return SCAP_SUCCESS;
 }
-int scap_bpf_get_pagefault_threads_number(scap_t* handle){
-	int k = -1;
-	unsigned long val = 0;
 
-	if(bpf_map_lookup_elem(handle->m_bpf_map_fds[SYSDIG_PAGEFAULT_MAJOR_MAP], &k, &val) != 0)
-	{
-		snprintf(handle->m_lasterr, SCAP_LASTERR_SIZE, "SYSDIG_PAGEFAULT_MAJOR_MAP bpf_map_lookup_elem < 0");
-		return -1;
-	}
-	return val;
-}
-int32_t scap_bpf_update_pagefaults_threads_number(scap_t* handle, int tid, unsigned long val){
-	if(bpf_map_update_elem(handle->m_bpf_map_fds[SYSDIG_PAGEFAULT_MAJOR_MAP], &tid, &val, BPF_ANY) != 0)
-	{
-		snprintf(handle->m_lasterr, SCAP_LASTERR_SIZE, "SYSDIG_PAGEFAULT_MAJOR_MAP bpf_map_update_elem < 0");
-		return SCAP_FAILURE;
-	}
-	return SCAP_SUCCESS;
-}
 int32_t scap_bpf_enable_page_faults(scap_t* handle)
 {
 	struct sysdig_bpf_settings settings;

@@ -248,15 +248,17 @@ void sinsp::enable_tracers_capture()
 #endif
 }
 
-void sinsp::clear_page_faults_map()
+int32_t sinsp::get_page_faults_from_map(uint64_t last_time, uint64_t cur_time, struct pagefault_data results[], int32_t *counts)
 {
 #if defined(HAS_CAPTURE) && ! defined(CYGWING_AGENT) && ! defined(_WIN32)
 	if(is_live() && m_h != NULL)
 	{
-		if(scap_pagefaults_map_clear(m_h) != SCAP_SUCCESS)
+		int32_t ret = scap_get_page_faults_from_map(m_h, last_time, cur_time, results, counts);
+		if(ret == SCAP_FAILURE)
 		{
-			throw sinsp_exception("error clearing page_faults map");
+			throw sinsp_exception("error getting page_faults from map");
 		}
+		return ret;
 	}
 #endif
 }
@@ -269,33 +271,6 @@ void sinsp::enable_page_faults()
 		if(scap_enable_page_faults(m_h) != SCAP_SUCCESS)
 		{
 			throw sinsp_exception("error enabling page_faults");
-		}
-	}
-#endif
-}
-
-int sinsp::get_pagefault_threads_number(){
-	#if defined(HAS_CAPTURE) && ! defined(CYGWING_AGENT) && ! defined(_WIN32)
-	if(is_live() && m_h != NULL)
-	{
-		int ret = scap_get_pagefaults_threads_number(m_h);
-		if(ret == -1)
-		{
-			throw sinsp_exception("error getting page_faults threads number");
-		}
-		return ret;
-	}
-#endif
-}
-
-void sinsp::update_pagefaults_threads_number(int tid, unsigned long val)
-{
-#if defined(HAS_CAPTURE) && ! defined(CYGWING_AGENT) && ! defined(_WIN32)
-	if(is_live() && m_h != NULL)
-	{
-		if(scap_update_pagefaults_thread_number(m_h, tid, val) != SCAP_SUCCESS)
-		{
-			throw sinsp_exception("error updating page_faults threads number");
 		}
 	}
 #endif

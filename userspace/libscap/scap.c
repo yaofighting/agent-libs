@@ -1919,19 +1919,13 @@ int32_t scap_enable_tracers_capture(scap_t* handle)
 }
 #endif
 
-int scap_get_pagefaults_threads_number(scap_t *handle){
-	return scap_bpf_get_pagefault_threads_number(handle);
-}
-
-int32_t scap_update_pagefaults_thread_number(scap_t *handle, int tid, unsigned long val){
-	return scap_bpf_update_pagefaults_threads_number(handle, tid, val);
-}
 
 #if defined(HAS_CAPTURE) && ! defined(CYGWING_AGENT) && ! defined(_WIN32)
-int32_t scap_pagefaults_map_clear(scap_t *handle){
+int32_t scap_get_page_faults_from_map(scap_t* handle, uint64_t last_time, uint64_t cur_time, struct pagefault_data results[], int32_t *counts)
+{
 	if(handle->m_mode != SCAP_MODE_LIVE)
 	{
-		snprintf(handle->m_lasterr, SCAP_LASTERR_SIZE, "scap_pagefaults_map_clear not supported on this scap mode");
+		snprintf(handle->m_lasterr, SCAP_LASTERR_SIZE, "scap_get_page_faults_from_map not supported on this scap mode");
 		ASSERT(false);
 		return SCAP_FAILURE;
 	}
@@ -1939,13 +1933,11 @@ int32_t scap_pagefaults_map_clear(scap_t *handle){
 	{
 		if(handle->m_bpf)
 		{
-			return scap_bpf_clear_pagefault_map(handle);
+			return scap_bpf_get_page_faults_from_map(handle, last_time, cur_time, results, counts);
 		}
 	}
 }
-#endif
 
-#if defined(HAS_CAPTURE) && ! defined(CYGWING_AGENT) && ! defined(_WIN32)
 int32_t scap_enable_page_faults(scap_t *handle)
 {
 	if(handle->m_mode != SCAP_MODE_LIVE)

@@ -250,6 +250,17 @@ struct tcp_reset_args {
 };
 #endif
 
+struct pagefault_data {
+	__u32 pid;
+	__u32 tid;
+	__u32 vm_size;
+	__u32 vm_rss;
+	__u32 vm_swap;
+	__u64 maj_flt;
+	__u64 min_flt;
+	__u64 timestamp;
+};
+
 enum sysdig_map_types {
 	SYSDIG_PERF_MAP = 0,
 	SYSDIG_TAIL_MAP = 1,
@@ -263,7 +274,7 @@ enum sysdig_map_types {
 	SYSDIG_LOCAL_STATE_MAP = 9,
 	SYSDIG_RTT_STATISTICS = 10,
 	SYSDIG_STASH_TUPLE_MAP = 11,
-	SYSDIG_PAGEFAULT_MAJOR_MAP = 12, 
+	SYSDIG_PAGEFAULT_MAP = 12, 
 #ifndef BPF_SUPPORTS_RAW_TRACEPOINTS
 	SYSDIG_STASH_MAP = 13,
 #endif
