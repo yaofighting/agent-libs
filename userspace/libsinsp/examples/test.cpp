@@ -81,13 +81,14 @@ void testPagefault(sinsp *inspector){
     //2. test eBPF pagefault_map
     uint64_t last_time = 0;
     pagefault_data *results = new pagefault_data[101000];
+    int32_t maxlen = 65535;
     int counts = 0;
     for(int i = 0;i < 5;i++){
         chrono::nanoseconds ns = std::chrono::duration_cast< std::chrono::nanoseconds>(
 		    std::chrono::system_clock::now().time_since_epoch()
 	    );
         uint64_t cur = ns.count();
-        inspector->get_page_faults_from_map(last_time, cur, results, &counts);
+        inspector->get_page_faults_from_map(last_time, cur, results, &counts, maxlen);
         last_time = cur;
         cout << "curtime: " << cur << "---catch " << counts << " pagefaults from 2 seconds before." << endl;
         for(int j = 0; j < counts;j++){

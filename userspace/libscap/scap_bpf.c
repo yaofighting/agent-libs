@@ -1259,7 +1259,7 @@ int32_t scap_bpf_enable_dynamic_snaplen(scap_t* handle)
 	A(ignore): |pagefault.timestamp|
 	B(catch): 					  		   			 |pagefault.timestamp|
 */
-int32_t scap_bpf_get_page_faults_from_map(scap_t* handle, uint64_t last_time, uint64_t cur_time, struct pagefault_data results[], int32_t *counts)
+int32_t scap_bpf_get_page_faults_from_map(scap_t* handle, uint64_t last_time, uint64_t cur_time, struct pagefault_data results[], int32_t *counts, int32_t maxlen)
 {
 	int next_key, lookup_key;
 	lookup_key = -1;
@@ -1273,6 +1273,9 @@ int32_t scap_bpf_get_page_faults_from_map(scap_t* handle, uint64_t last_time, ui
 			cnt++;
 		}
 		lookup_key = next_key;
+		if(cnt >= maxlen){
+			break;
+		}
 	}
 	*counts = cnt;
 	return SCAP_SUCCESS;

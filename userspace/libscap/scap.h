@@ -1068,7 +1068,7 @@ void scap_set_refresh_proc_table_when_saving(scap_t* handle, bool refresh);
 uint64_t scap_ftell(scap_t *handle);
 void scap_fseek(scap_t *handle, uint64_t off);
 int32_t scap_enable_tracers_capture(scap_t* handle);
-int32_t scap_get_page_faults_from_map(scap_t* handle, uint64_t last_time, uint64_t cur_time, struct pagefault_data results[], int32_t *counts);
+int32_t scap_get_page_faults_from_map(scap_t* handle, uint64_t last_time, uint64_t cur_time, struct pagefault_data results[], int32_t *counts, int32_t maxlen);
 int32_t scap_enable_page_faults(scap_t *handle);
 int32_t scap_enable_skb_capture(scap_t *handle);
 int32_t scap_disable_skb_capture(scap_t *handle);

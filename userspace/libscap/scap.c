@@ -1921,7 +1921,7 @@ int32_t scap_enable_tracers_capture(scap_t* handle)
 
 
 #if defined(HAS_CAPTURE) && ! defined(CYGWING_AGENT) && ! defined(_WIN32)
-int32_t scap_get_page_faults_from_map(scap_t* handle, uint64_t last_time, uint64_t cur_time, struct pagefault_data results[], int32_t *counts)
+int32_t scap_get_page_faults_from_map(scap_t* handle, uint64_t last_time, uint64_t cur_time, struct pagefault_data results[], int32_t *counts, int maxlen)
 {
 	if(handle->m_mode != SCAP_MODE_LIVE)
 	{
@@ -1933,7 +1933,7 @@ int32_t scap_get_page_faults_from_map(scap_t* handle, uint64_t last_time, uint64
 	{
 		if(handle->m_bpf)
 		{
-			return scap_bpf_get_page_faults_from_map(handle, last_time, cur_time, results, counts);
+			return scap_bpf_get_page_faults_from_map(handle, last_time, cur_time, results, counts, maxlen);
 		}
 	}
 }
