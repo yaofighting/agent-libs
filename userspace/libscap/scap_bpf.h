@@ -62,7 +62,7 @@ int32_t scap_bpf_disable_skb_capture(scap_t *handle);
 int32_t scap_bpf_handle_eventmask(scap_t* handle, uint32_t op, uint32_t event_id);
 int32_t scap_bpf_init_focus_network_interface(scap_t* handle, int ifindex[]);
 int32_t scap_bpf_get_tcp_handshake_rtt(scap_t* handle, struct tcp_handshake_buffer_elem results[], int *reslen, int max_len);
-int32_t scap_bpf_select_earliest_tcpdata(scap_t* handle, int heads[], int tails[], struct tcp_datainfo elems[], struct tcp_datainfo * tf);
+int32_t scap_bpf_select_earliest_tcpdata(scap_t* handle, uint64_t heads[], uint64_t tails[], struct tcp_datainfo elems[], struct tcp_datainfo * tf);
 int32_t scap_bpf_get_tcp_datainfo(scap_t* handle, struct tcp_datainfo results[], int *reslen, int max_len);
 
 

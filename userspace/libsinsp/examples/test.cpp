@@ -63,7 +63,7 @@ void test_tcp_packets_analyzer(sinsp *inspector)
     int32_t ret = inspector->get_tcp_handshake_rtt(elem, &len, max_len);
     hds_analyzer.aggregate_handshake_info(elem, &len);  
         
-    ret = inspector->get_tcp_datainfo(tcp_data, &len, max_len);
+    int32_t ret2 = inspector->get_tcp_datainfo(tcp_data, &len, max_len);
     tp_analyzer.get_total_tcp_packets(tcp_data, &len);
     tp_analyzer.get_tcp_ack_delay(tcp_data, &len);
 }

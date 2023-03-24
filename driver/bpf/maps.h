@@ -116,7 +116,7 @@ struct bpf_map_def __bpf_section("maps") tcp_handshake_map = {
 
 struct bpf_map_def SEC("maps") tcp_handshake_buffer = {
 	.type = BPF_MAP_TYPE_PERCPU_ARRAY,
-	.key_size = sizeof(int),
+	.key_size = sizeof(u32),
 	.value_size = sizeof(struct tcp_handshake_buffer_elem),  
 	.max_entries = MAX_BUFFER_LEN,
 };
@@ -130,7 +130,7 @@ struct bpf_map_def SEC("maps") tcp_datainfo_map = {
 
 struct bpf_map_def SEC("maps") tcp_datainfo_buffer = {
 	.type = BPF_MAP_TYPE_PERCPU_ARRAY,
-	.key_size = sizeof(int),
+	.key_size = sizeof(u32),
 	.value_size = sizeof(struct tcp_datainfo),  
 	.max_entries = MAX_BUFFER_LEN,
 };

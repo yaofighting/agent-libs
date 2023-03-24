@@ -1843,13 +1843,13 @@ int32_t scap_bpf_get_tcp_handshake_rtt(scap_t* handle, struct tcp_handshake_buff
 		// printf("CPU id = %d. the number of handshake-rtt: %d, head = %d, tail = %d\n", i, tails[i] - heads[i], heads[i], tails[i]);
 		while(heads[i] != tails[i])
 		{
-			int ret = bpf_map_lookup_elem(handle->m_bpf_map_fds[SYSDIG_HANDSHAKE_BUFFER], &heads[i], elems);
+			int ret = bpf_map_lookup_elem(handle->m_bpf_map_fds[SYSDIG_HANDSHAKE_BUFFER], (uint32_t *)&heads[i], elems);
 			if(ret == 0 && count < max_len)
 			{
-				// printf("heads[i]: %d, src: %d, dst: %d, sport: %d, dport: %d, synrtt: %u, ackrtt: %u, timestamp: %llu\n", heads[i], elems[i].tp.saddr, elems[i].tp.daddr, elems[i].tp.sport, elems[i].tp.dport, 
+				// printf("heads[i]: %d, src: %u, dst: %u, sport: %d, dport: %d, synrtt: %u, ackrtt: %u, timestamp: %llu\n", heads[i], elems[i].tp.saddr, elems[i].tp.daddr, elems[i].tp.sport, elems[i].tp.dport, 
 				// 	elems[i].synrtt, elems[i].ackrtt, elems[i].timestamp);
 				results[count++] = elems[i];
-				if(elems[i].timestamp == 0) printf("error_time 0\n");
+				//if(elems[i].timestamp == 0) printf("error_time 0\n");
 				heads[i] = (heads[i] + 1) % MAX_BUFFER_LEN;	
 			}
 			else
@@ -1882,17 +1882,19 @@ int32_t scap_bpf_get_tcp_handshake_rtt(scap_t* handle, struct tcp_handshake_buff
 }
 
 //select an tcpdata event with the earliest timestamp.
-int32_t scap_bpf_select_earliest_tcpdata(scap_t* handle, int heads[], int tails[], struct tcp_datainfo elems[], struct tcp_datainfo * tf)
+int32_t scap_bpf_select_earliest_tcpdata(scap_t* handle, uint64_t heads[], uint64_t tails[], struct tcp_datainfo elems[], struct tcp_datainfo * tf)
 {
 	int min_cpu = -1, i;
 	uint64_t min_time = 0xffffffffffffffff;
 	for(i = 0;i < handle->m_ncpus; i++)
 	{
-		if(heads[i] != tails[i] && bpf_map_lookup_elem(handle->m_bpf_map_fds[SYSDIG_TCP_DATAINFO_BUFFER], &heads[i], elems) == 0)
+		// printf("CPU id = %d. the number of tcpdata: %d, head = %d, tail = %d\n", i, tails[i] - heads[i], heads[i], tails[i]);
+		if(heads[i] != tails[i] && bpf_map_lookup_elem(handle->m_bpf_map_fds[SYSDIG_TCP_DATAINFO_BUFFER], (uint32_t *)&heads[i], elems) == 0)
 		{
-			if(elems[i].timestamp > 0 && elems[i].timestamp < min_time)
+			// printf("heads[i]: %d, src: %u, dst: %u, sport: %d, dport: %d, timestamp: %llu\n", heads[i], elems[i].tp.saddr, elems[i].tp.daddr, elems[i].tp.sport, elems[i].tp.dport,
+			//  elems[i].timestamp);
+			if(elems[i].timestamp < min_time)
 			{
-				//printf("timestamp: %llu\n", elems[i].timestamp);
 				min_time = elems[i].timestamp;
 				min_cpu = i;
 				*tf = elems[i];
