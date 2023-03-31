@@ -1807,10 +1807,10 @@ int32_t scap_bpf_handle_eventmask(scap_t* handle, uint32_t op, uint32_t event_id
 	return SCAP_SUCCESS;
 }
 
-int32_t scap_bpf_init_focus_network_interface(scap_t* handle, int ifindex[])
+int32_t scap_bpf_init_focus_network_interface(scap_t* handle, int ifindex[], int interface_type)
 {
 	int count = 0;
-	uint64_t val = 1;
+	uint64_t val = interface_type;
 	while(ifindex[count] != -1)
 	{
 		if(bpf_map_update_elem(handle->m_bpf_map_fds[SYSDIG_FOCUS_NETWORK_INTERFACE], &ifindex[count], &val, BPF_ANY) != 0)
@@ -1881,34 +1881,29 @@ int32_t scap_bpf_get_tcp_handshake_rtt(scap_t* handle, struct tcp_handshake_buff
 	return SCAP_SUCCESS;
 }
 
-//select an tcpdata event with the earliest timestamp.
-int32_t scap_bpf_select_earliest_tcpdata(scap_t* handle, uint64_t heads[], uint64_t tails[], struct tcp_datainfo elems[], struct tcp_datainfo * tf)
-{
-	int min_cpu = -1, i;
-	uint64_t min_time = 0xffffffffffffffff;
-	for(i = 0;i < handle->m_ncpus; i++)
-	{
-		// printf("CPU id = %d. the number of tcpdata: %d, head = %d, tail = %d\n", i, tails[i] - heads[i], heads[i], tails[i]);
-		if(heads[i] != tails[i] && bpf_map_lookup_elem(handle->m_bpf_map_fds[SYSDIG_TCP_DATAINFO_BUFFER], (uint32_t *)&heads[i], elems) == 0)
-		{
-			// printf("heads[i]: %d, src: %u, dst: %u, sport: %d, dport: %d, timestamp: %llu\n", heads[i], elems[i].tp.saddr, elems[i].tp.daddr, elems[i].tp.sport, elems[i].tp.dport,
-			//  elems[i].timestamp);
-			if(elems[i].timestamp < min_time)
-			{
-				min_time = elems[i].timestamp;
-				min_cpu = i;
-				*tf = elems[i];
-			}
-		}
-	}
-	if(min_cpu == -1)
-	{
-		return -1;
-	}
-	heads[min_cpu] = (heads[min_cpu] + 1) % MAX_BUFFER_LEN;
-	// printf("get data from cpu = %d, heads[i] = %d, tails[i] = %d\n", min_cpu, heads[min_cpu], tails[min_cpu]);
-	return 0;
-} 
+#define GET_EARLIST_DATA(name, data_type, map_type) \
+int32_t scap_bpf_select_earliest_##name(scap_t* handle, uint64_t heads[], uint64_t tails[], data_type *elems, data_type *tf) \
+{																												\																																						
+	int min_cpu = -1, i;																					\
+	uint64_t min_time = 0xffffffffffffffff;																	\
+	for(i = 0;i < handle->m_ncpus; i++)																						\
+	{																															\
+		if(heads[i] != tails[i] && bpf_map_lookup_elem(handle->m_bpf_map_fds[map_type], (uint32_t *)&heads[i], elems) == 0)		\
+		{																														\
+			if(elems[i].timestamp < min_time)																					\
+			{																													\
+				min_time = elems[i].timestamp;																					\
+				min_cpu = i;																									\
+				*tf = elems[i];																									\
+			}																													\
+		}																														\
+	}																															\
+	if(min_cpu == -1) return -1;																								\
+	heads[min_cpu] = (heads[min_cpu] + 1) % MAX_BUFFER_LEN;																		\
+	return 0;																												\
+} 			
+GET_EARLIST_DATA(tcpdata, struct tcp_datainfo, SYSDIG_TCP_DATAINFO_BUFFER)
+GET_EARLIST_DATA(tcpraw, struct tcp_raw_data, SYSDIG_TCP_RAWDATA_BUFFER)
 
 int32_t scap_bpf_get_tcp_datainfo(scap_t* handle, struct tcp_datainfo results[], int *reslen, int max_len)
 {
@@ -1951,6 +1946,56 @@ int32_t scap_bpf_get_tcp_datainfo(scap_t* handle, struct tcp_datainfo results[],
 	else
 	{
 		handle->m_tcp_packets_buffer_empty_wait_time_us = BUFFER_EMPTY_WAIT_TIME_US_START;
+	}
+	if(bpf_map_update_elem(handle->m_bpf_map_fds[SYSDIG_BUFFER_POINTER], &h, heads, BPF_ANY) != 0)
+	{
+		snprintf(handle->m_lasterr, SCAP_LASTERR_SIZE, "SYSDIG_BUFFER_POINTER bpf_map_update_elem < 0");
+		return SCAP_FAILURE;
+	}
+	return SCAP_SUCCESS;
+}
+
+int32_t scap_bpf_get_tcp_rawdata(scap_t* handle, struct tcp_raw_data results[], int *reslen, int max_len)
+{
+	int h = TCP_RAWDATA_BUFFER_HEAD, t = TCP_RAWDATA_BUFFER_TAIL, i;
+
+	uint32_t count = 0, pkgcount = 0;
+
+	uint64_t heads[handle->m_ncpus];
+	uint64_t tails[handle->m_ncpus];
+	struct tcp_raw_data elems[handle->m_ncpus];
+
+	if(bpf_map_lookup_elem(handle->m_bpf_map_fds[SYSDIG_BUFFER_POINTER], &h, heads) != 0 
+		|| bpf_map_lookup_elem(handle->m_bpf_map_fds[SYSDIG_BUFFER_POINTER], &t, tails) != 0)
+	{
+		snprintf(handle->m_lasterr, SCAP_LASTERR_SIZE, "tcp raw data pointer is not initialized.");
+		return SCAP_NOTFOUND;
+	}
+
+	while(scap_bpf_select_earliest_tcpraw(handle, heads, tails, elems, &results[count]) != -1)
+	{
+		count++;
+		if(count >= max_len)
+		{
+			break;
+		}
+	}
+
+	*reslen = count;
+
+	if(count < BUFFER_EMPTY_THRESHOLD_B)
+	{
+#ifdef _WIN32
+		Sleep((DWORD)handle->m_tcp_rawdata_buffer_empty_wait_time_us / 1000);
+#else
+		usleep(handle->m_tcp_rawdata_buffer_empty_wait_time_us);
+#endif
+		handle->m_tcp_rawdata_buffer_empty_wait_time_us = MIN(handle->m_tcp_rawdata_buffer_empty_wait_time_us * 2,
+							  BUFFER_EMPTY_WAIT_TIME_US_MAX);
+	}
+	else
+	{
+		handle->m_tcp_rawdata_buffer_empty_wait_time_us = BUFFER_EMPTY_WAIT_TIME_US_START;
 	}
 	if(bpf_map_update_elem(handle->m_bpf_map_fds[SYSDIG_BUFFER_POINTER], &h, heads, BPF_ANY) != 0)
 	{

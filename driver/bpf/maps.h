@@ -146,7 +146,14 @@ struct bpf_map_def SEC("maps") focus_network_interface = {
 	.type = BPF_MAP_TYPE_HASH,
 	.key_size = sizeof(u32),
 	.value_size = sizeof(u64),  
-	.max_entries = 65535,
+	.max_entries = 1024,
+};
+
+struct bpf_map_def SEC("maps") tcp_rawdata_buffer = {
+	.type = BPF_MAP_TYPE_PERCPU_ARRAY,
+	.key_size = sizeof(u32),
+	.value_size = sizeof(struct tcp_raw_data),  
+	.max_entries = MAX_BUFFER_LEN,
 };
 
 #ifndef BPF_SUPPORTS_RAW_TRACEPOINTS

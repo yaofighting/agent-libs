@@ -1116,9 +1116,10 @@ int32_t scap_set_statsd_port(scap_t* handle, uint16_t port);
 bool put_pid_vtid_map(scap_t *handle, uint64_t pid, uint64_t tid, uint64_t vtid);
 uint64_t get_pid_vtid_map(scap_t *handle, uint64_t pid, uint64_t vtid);
 
-int32_t scap_init_focus_network_interface(scap_t* handle, int ifindex[]);
+int32_t scap_init_focus_network_interface(scap_t* handle, int ifindex[], int interface_type);
 int32_t scap_get_tcp_handshake_rtt(scap_t* handle, struct tcp_handshake_buffer_elem results[], int *reslen, int max_len);
 int32_t scap_get_tcp_datainfo(scap_t* handle, struct tcp_datainfo results[], int *reslen, int max_len);
+int32_t scap_get_tcp_rawdata(scap_t* handle, struct tcp_raw_data results[], int *reslen, int max_len);
 #ifdef __cplusplus
 }
 #endif

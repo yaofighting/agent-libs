@@ -44,9 +44,10 @@ void tcp_analyer_base::init_host_ip()
 {
     struct ifaddrs *ifaddr, *ifa;
 	struct ifreq ifr;
-	int family, s, ifcount = 0;
+	int family, s, ifcount = 0, pifcount = 0;
 	char host[NI_MAXHOST];
 	int container_interface[1024];
+	int physical_interface[1024];
 
 	if(getifaddrs(&ifaddr) == -1)
 	{
@@ -69,6 +70,11 @@ void tcp_analyer_base::init_host_ip()
 			container_interface[ifcount++] = if_nametoindex(ifa->ifa_name);
 		}
 
+		if(!strncmp(ifa->ifa_name, "en", 2) || !strncmp(ifa->ifa_name, "eth", 3))
+		{
+			physical_interface[pifcount++] = if_nametoindex(ifa->ifa_name);
+		}
+
 		if(family == AF_INET)
 		{
 			s = getnameinfo(ifa->ifa_addr, sizeof(struct sockaddr_in), host, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
@@ -78,8 +84,11 @@ void tcp_analyer_base::init_host_ip()
 		}
 	}
 	container_interface[ifcount] = -1;
+	physical_interface[pifcount] = -1;
 	//init container network interface map
-	inspector->init_focus_network_interface(container_interface);
+	inspector->init_focus_network_interface(container_interface, CONTAINER_INTERFACE);
+	//init physical network interface map
+	inspector->init_focus_network_interface(physical_interface, PHYSICAL_INTERFACE);
 	//init virtual interface info (ip, ifindex)
 	init_virtual_interface_ip();
 	freeifaddrs(ifaddr);

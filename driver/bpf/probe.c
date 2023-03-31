@@ -778,7 +778,7 @@ BPF_SOCKET_PROBE(tcp_analysis)
 	struct bpf_flow_keys flow = {};
 	u64 cur_time = bpf_ktime_get_ns() + settings->boot_time;
 
-	if (!flow_dissector(skb, &flow, &cur_time)) 
+	if (!flow_dissector(skb, &flow, &cur_time, *focus_ifindex)) 
 		return 0;
 
 	return 0;

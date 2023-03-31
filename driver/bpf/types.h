@@ -279,16 +279,25 @@ enum sysdig_map_types {
 	SYSDIG_TCP_DATAINFO_BUFFER = 15,
 	SYSDIG_BUFFER_POINTER = 16,
 	SYSDIG_FOCUS_NETWORK_INTERFACE = 17,
+	SYSDIG_TCP_RAWDATA_BUFFER = 18,
 #ifndef BPF_SUPPORTS_RAW_TRACEPOINTS
-	SYSDIG_STASH_MAP = 18,
+	SYSDIG_STASH_MAP = 19,
 #endif
 };
+
+enum interface_types {
+	PHYSICAL_INTERFACE = 1, 
+	CONTAINER_INTERFACE = 2,
+};
+
 
 enum tcp_buffer_pointer_types {
 	TCP_HANDSHAKE_BUFFER_HEAD = 0,
 	TCP_HANDSHAKE_BUFFER_TAIL = 1,
 	TCP_DATAINFO_BUFFER_HEAD = 2,
 	TCP_DATAINFO_BUFFER_TAIL = 3,
+	TCP_RAWDATA_BUFFER_HEAD = 4,
+	TCP_RAWDATA_BUFFER_TAIL = 5,
 
 	TCP_POINTER_COUNTS
 };
@@ -352,6 +361,17 @@ struct bpf_flow_keys {
 	};
 	__u16 thoff;
 	__u8 ip_proto;
+};
+
+/*
+tcp raw data.
+*/
+struct tcp_raw_data {  //tcp raw data in buffer
+	struct tcp_tuple tp;
+	__u16 flag;
+	__be32 seq;
+	__be32 ack_seq;
+	__u64 timestamp;
 };
 
 /*

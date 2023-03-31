@@ -317,6 +317,7 @@ scap_t* scap_open_live_int(char *error, int32_t *rc,
 	handle->m_buffer_empty_wait_time_us = BUFFER_EMPTY_WAIT_TIME_US_START;
 	handle->m_tcp_handshake_buffer_empty_wait_time_us = BUFFER_EMPTY_WAIT_TIME_US_START;
 	handle->m_tcp_packets_buffer_empty_wait_time_us = BUFFER_EMPTY_WAIT_TIME_US_START;
+	handle->m_tcp_rawdata_buffer_empty_wait_time_us = BUFFER_EMPTY_WAIT_TIME_US_START;
 
 	if ((*rc = copy_comms(handle, suppressed_comms)) != SCAP_SUCCESS)
 	{
@@ -583,6 +584,7 @@ scap_t* scap_open_udig_int(char *error, int32_t *rc,
 	handle->m_buffer_empty_wait_time_us = BUFFER_EMPTY_WAIT_TIME_US_START;
 	handle->m_tcp_handshake_buffer_empty_wait_time_us = BUFFER_EMPTY_WAIT_TIME_US_START;
 	handle->m_tcp_packets_buffer_empty_wait_time_us = BUFFER_EMPTY_WAIT_TIME_US_START;
+	handle->m_tcp_rawdata_buffer_empty_wait_time_us = BUFFER_EMPTY_WAIT_TIME_US_START;
 
 #ifdef _WIN32
 	handle->m_whh = scap_windows_hal_open(error);
@@ -2757,6 +2759,10 @@ int32_t scap_get_tcp_datainfo(scap_t* handle, struct tcp_datainfo results[], int
 	return scap_bpf_get_tcp_datainfo(handle, results, reslen, max_len);
 }
 
-int32_t scap_init_focus_network_interface(scap_t* handle, int ifindex[]){
-	return scap_bpf_init_focus_network_interface(handle, ifindex);
+int32_t scap_get_tcp_rawdata(scap_t* handle, struct tcp_raw_data results[], int *reslen, int max_len){
+	return scap_bpf_get_tcp_rawdata(handle, results, reslen, max_len);
+}
+
+int32_t scap_init_focus_network_interface(scap_t* handle, int ifindex[], int interface_type){
+	return scap_bpf_init_focus_network_interface(handle, ifindex, interface_type);
 }

@@ -1124,12 +1124,12 @@ void sinsp::get_procs_cpu_from_driver(uint64_t ts)
 	}
 }
 
-int32_t sinsp::init_focus_network_interface(int ifindex[])
+int32_t sinsp::init_focus_network_interface(int ifindex[], int interface_type)
 {
 #if defined(HAS_CAPTURE) && ! defined(CYGWING_AGENT) && ! defined(_WIN32)
 	if(is_live() && m_h != NULL)
 	{
-		int32_t ret = scap_init_focus_network_interface(m_h, ifindex);
+		int32_t ret = scap_init_focus_network_interface(m_h, ifindex, interface_type);
 		if(ret != SCAP_SUCCESS)
 			return -1;
 		return 0;
@@ -1157,6 +1157,19 @@ int32_t sinsp::get_tcp_datainfo(tcp_datainfo results[], int *reslen, int max_len
 	if(is_live() && m_h != NULL)
 	{
 		int32_t ret = scap_get_tcp_datainfo(m_h, results, reslen, max_len);
+		if(ret != SCAP_SUCCESS)
+			return -1;
+		return 0;
+	}
+#endif
+}
+
+int32_t sinsp::get_tcp_raw_data(tcp_raw_data results[], int *reslen, int max_len)
+{
+#if defined(HAS_CAPTURE) && ! defined(CYGWING_AGENT) && ! defined(_WIN32)
+	if(is_live() && m_h != NULL)
+	{
+		int32_t ret = scap_get_tcp_rawdata(m_h, results, reslen, max_len);
 		if(ret != SCAP_SUCCESS)
 			return -1;
 		return 0;
