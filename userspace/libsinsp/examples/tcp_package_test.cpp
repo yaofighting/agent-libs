@@ -23,9 +23,11 @@ void tcp_analyer_base::init_virtual_interface_ip()
 
         // interface
         token = strtok_r(line, delimiters, &scratch);
-        if(token && strncmp(token, "veth", 4) == 0 || strncmp(token, "cali",4) == 0)
+        if(token && (strncmp(token, "veth", 4) == 0 || strncmp(token, "cali", 4) == 0 || strncmp(token, "cni0", 4) == 0))
         {
 			uint32_t ifindex = if_nametoindex(token);
+			char ifname[30];
+			strncpy(ifname, token, 20);
 			// Destination
         	token = strtok_r(NULL, delimiters, &scratch);
         	if(token)
@@ -33,11 +35,38 @@ void tcp_analyer_base::init_virtual_interface_ip()
 				char *end;
         		uint32_t ip = strtoul(token, &end, 16);
         		ip = ntohl(ip);
-				host_map[ip] = ifindex;
+				if(strncmp(ifname, "cni0", 4) != 0)
+				{
+					host_map[ip] = ifindex;
+				}
+				else
+				{
+					cni0.ifindex = ifindex;
+					cni0.ip = ip;
+					for(int i = 0;i < 6;i++)
+					{
+						if(token)
+						{
+							token = strtok_r(NULL, delimiters, &scratch);
+						}
+					}
+					//netmask
+					uint32_t netmask = strtoul(token, &end, 16);
+        			netmask = ntohl(netmask);
+					cni0.netmask = netmask;
+					// printf("cni0_name = %s, netmask = %u\n", ifname, netmask);
+				}
         	}
         }
+
     }
 	fclose(fp);
+}
+
+bool tcp_analyer_base::is_ip_from_cni0_network(uint32_t ip)
+{
+	uint32_t net = ip & cni0.netmask;
+	return net == cni0.ip;
 }
 
 void tcp_analyer_base::init_host_ip()
@@ -61,7 +90,6 @@ void tcp_analyer_base::init_host_ip()
 			continue;
 
 		family = ifa->ifa_addr->sa_family;
-
 		if(!strcmp(ifa->ifa_name, "lo")) //filter out localhost/127.0.0.1
 			continue;
 

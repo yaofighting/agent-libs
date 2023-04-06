@@ -44,19 +44,9 @@ static __always_inline int get_proto_ports_offset(__u64 proto)
 	}
 }
 
-static __always_inline int is_ip_fragment(struct __sk_buff *ctx, __u64 nhoff)
+static __always_inline int is_ip_fragment(struct iphdr *iph)
 {
-	return load_half(ctx, nhoff + offsetof(struct iphdr, frag_off)) & (IP_MF | IP_OFFSET);
-}
-
-static __always_inline __u32 ipv6addr_hash(struct __sk_buff *ctx, __u64 off)
-{
-	__u64 w0 = load_word(ctx, off);
-	__u64 w1 = load_word(ctx, off + 4);
-	__u64 w2 = load_word(ctx, off + 8);
-	__u64 w3 = load_word(ctx, off + 12);
-
-	return (__u32)(w0 ^ w1 ^ w2 ^ w3);
+	return __constant_htons(_READ(iph->frag_off)) & (IP_MF | IP_OFFSET);
 }
 
 /*
@@ -64,44 +54,20 @@ static __always_inline __u32 ipv6addr_hash(struct __sk_buff *ctx, __u64 off)
 	we use is_overlay field. Currently, we only focus on 'UDP+VXLAN'(by Flannel) and 'IPIP'(by Calico).
 */
 
-static __always_inline __u64 parse_ip(struct __sk_buff *skb, __u64 nhoff, __u64 *ip_proto,
-				      struct bpf_flow_keys *flow)
+static __always_inline void parse_ip(struct iphdr *iph, __u64 *ip_proto, struct bpf_flow_keys *flow)
 {
-	__u64 verlen;
-
-	if(unlikely(is_ip_fragment(skb, nhoff)))
+	if(unlikely(is_ip_fragment(iph)))
 		*ip_proto = 0;
 	else
-		*ip_proto = load_byte(skb, nhoff + offsetof(struct iphdr, protocol));
+		*ip_proto = _READ(iph->protocol);
 
 	if(*ip_proto != IPPROTO_GRE)
 	{
-		flow->src = load_word(skb, nhoff + offsetof(struct iphdr, saddr));
-		flow->dst = load_word(skb, nhoff + offsetof(struct iphdr, daddr));
+		flow->src = __constant_htonl(_READ(iph->saddr));
+		flow->dst = __constant_htonl(_READ(iph->daddr));
 	}
-
-	verlen = load_byte(skb, nhoff + 0 /*offsetof(struct iphdr, ihl)*/);
-	if(likely(verlen == 0x45))
-		nhoff += 20;
-	else
-		nhoff += (verlen & 0xF) << 2;
-
-	return nhoff;
 }
 
-static __always_inline __u64 parse_ipv6(struct __sk_buff *skb, __u64 nhoff, __u64 *ip_proto,
-					struct bpf_flow_keys *flow)
-{
-	*ip_proto = load_byte(skb,
-			      nhoff + offsetof(struct ipv6hdr, nexthdr));
-	flow->src = ipv6addr_hash(skb,
-				  nhoff + offsetof(struct ipv6hdr, saddr));
-	flow->dst = ipv6addr_hash(skb,
-				  nhoff + offsetof(struct ipv6hdr, daddr));
-	nhoff += sizeof(struct ipv6hdr);
-
-	return nhoff;
-}
 
 static __always_inline void reverse_tuple(struct tcp_tuple *tp)
 {
@@ -305,25 +271,23 @@ static __always_inline void send_tcp_rawdata(struct sysdig_bpf_settings *setting
 
 }
 
-static __always_inline __u64 parse_tcp(struct __sk_buff *skb, __u64 nhoff, __u64 *ip_proto, struct bpf_flow_keys *flow, u64 *cur_time, u64 *interface_type)
+static __always_inline void parse_tcp(struct tcphdr *tcph, __u64 *ip_proto, struct bpf_flow_keys *flow, u64 *cur_time, u64 *interface_type)
 {
-	__u32 seq = load_word(skb, nhoff + offsetof(struct tcphdr, seq));
-	__u32 ack_seq = load_word(skb, nhoff + offsetof(struct tcphdr, ack_seq));
-	__u16 flag = load_half(skb, nhoff + 12 /*offsetof(struct tcphdr, 12)*/);
-	flow->seq = seq;
-	flow->ack_seq = ack_seq;
-	flow->flag = flag;
+	flow->seq = __constant_htonl(_READ(tcph->seq));
+	flow->ack_seq = __constant_htonl(_READ(tcph->ack_seq));
+	bpf_probe_read(&flow->flag, sizeof(flow->flag), (void *)tcph + 12);
+	flow->flag = __constant_htons(flow->flag);
 
 	int poff = get_proto_ports_offset(*ip_proto);
 	if(poff >= 0)
 	{
-		nhoff += poff;
-		flow->ports = load_word(skb, nhoff);
+		flow->port16[0] = __constant_htons(_READ(tcph->source));
+		flow->port16[1] = __constant_htons(_READ(tcph->dest));
 	}
 
 	struct sysdig_bpf_settings *settings = get_bpf_settings();
 	if(!settings || !settings->capture_enabled)
-		return nhoff;
+		return;
 
 	if(*interface_type == CONTAINER_INTERFACE)
 	{
@@ -332,16 +296,16 @@ static __always_inline __u64 parse_tcp(struct __sk_buff *skb, __u64 nhoff, __u64
 	}
 	send_tcp_rawdata(settings, flow, cur_time);
 	
-	return nhoff;
+	return;
 }
 
-static __always_inline __u64 parse_udp(struct __sk_buff *skb, __u64 nhoff, __u64 *ip_proto, struct bpf_flow_keys *flow, u64 *cur_time, u64 *interface_type)
+static __always_inline void parse_udp(struct udphdr *udph, __u64 *ip_proto, struct bpf_flow_keys *flow, u64 *cur_time, u64 *interface_type)
 {
 	// parse UDP header
-	__u16 source = load_half(skb, nhoff + offsetof(struct udphdr, source));
-	__u16 dest = load_half(skb, nhoff + offsetof(struct udphdr, dest));
-	__u16 len = load_half(skb, nhoff + offsetof(struct udphdr, len));
-	__u16 check = load_half(skb, nhoff + offsetof(struct udphdr, check));
+	__u16 source = __constant_htons(_READ(udph->source));
+	__u16 dest = __constant_htons(_READ(udph->dest));
+	__u16 len = __constant_htons(_READ(udph->len));
+	__u16 check = __constant_htons(_READ(udph->check));
 
 	// char fmt1[] = "enter parse udp...dest = %d, vxlan_port = %d\n";
 	// bpf_trace_printk(fmt1, sizeof(fmt1), dest, vxlan_port);
@@ -353,124 +317,81 @@ static __always_inline __u64 parse_udp(struct __sk_buff *skb, __u64 nhoff, __u64
 
 		// char fmt_ipo[] = "get out--src_ip = %u, out--dst_ip = %u\n";
 		// bpf_trace_printk(fmt_ipo, sizeof(fmt_ipo), flow->src, flow->dst);
+		struct iphdr *iph = (struct iphdr *)((__u64)udph + VXLAN_HLEN + ETH_HLEN);
 
-		nhoff += sizeof(struct udphdr) + VXLAN_HLEN + ETH_HLEN;
-		nhoff = parse_ip(skb, nhoff, &ip_proto, flow);
+		parse_ip(iph, &ip_proto, flow);
 
-		nhoff = parse_tcp(skb, nhoff, &ip_proto, flow, cur_time, interface_type);
+		parse_tcp(iph, &ip_proto, flow, cur_time, interface_type);
 		
 		// char fmt_ip[] = "get in--src_ip = %u, in--dst_ip = %u\n\n";
 		// bpf_trace_printk(fmt_ip, sizeof(fmt_ip), flow->src, flow->dst);
 	}
 }
 
-static __always_inline bool flow_dissector(struct __sk_buff *skb, struct bpf_flow_keys *flow, u64 *cur_time, u64 interface_type)
+static __always_inline bool flow_dissector(struct sk_buff *skb, struct bpf_flow_keys *flow, u64 *cur_time, u64 interface_type)
 {
+	void *head = _READ(skb->head);
+	void *pkt_data = _READ(skb->data);
+	u32 data_len = _READ(skb->len);
+	void *data_end = (void *)(data_len + (long)pkt_data);
+	__u16 mac_offset = _READ(skb->mac_header);
+	struct ethhdr *eth = (struct skbhdr *)((__u64)head + (__u64)mac_offset);
+	struct iphdr *iph;
+
 	__u64 nhoff = ETH_HLEN;
 	__u64 ip_proto;
-	__u64 proto = load_half(skb, 12);
-	int poff;
-
-	struct tcp_skb_cb *tcb;
-
-	if(proto == ETH_P_8021AD)
-	{ // deal with ETH VLAN protocol
-		proto = load_half(skb, nhoff + offsetof(struct my_vlan_hdr,
-							h_vlan_encapsulated_proto));
-		nhoff += sizeof(struct my_vlan_hdr); // nhoff points to the IP data header
-	}
-
-	if(proto == ETH_P_8021Q)
-	{
-		proto = load_half(skb, nhoff + offsetof(struct my_vlan_hdr,
-							h_vlan_encapsulated_proto));
-		nhoff += sizeof(struct my_vlan_hdr);
-	}
+	__u16 proto = _READ(eth->h_proto);
+	proto = htons(proto);
 
 	if(likely(proto == ETH_P_IP))
-		nhoff = parse_ip(skb, nhoff, &ip_proto, flow); // nhoff points to the IP data.
-	else if(proto == ETH_P_IPV6)
-		nhoff = parse_ipv6(skb, nhoff, &ip_proto, flow);
+	{
+		__u16 ip_offset = _READ(skb->network_header);
+		iph = (struct iphdr *)((__u64)head + (__u64)ip_offset);
+		parse_ip(iph, &ip_proto, flow); 
+	}
 	else
 		return false;
 
 	if(flow->src == IP_HOST || flow->dst == IP_HOST)
 		return false; // host ip filter
 
-	flow->ifindex = skb->ifindex;
-
 	bool is_ipip = false;
 
 	switch(ip_proto)
 	{
-	case IPPROTO_GRE:
-	{
-		struct gre_hdr
-		{
-			__be16 flags;
-			__be16 proto;
-		};
-
-		__u64 gre_flags = load_half(skb,
-					    nhoff + offsetof(struct gre_hdr, flags));
-		__u64 gre_proto = load_half(skb,
-					    nhoff + offsetof(struct gre_hdr, proto));
-
-		if(gre_flags & (GRE_VERSION | GRE_ROUTING))
-			break;
-
-		proto = gre_proto;
-		nhoff += 4;
-		if(gre_flags & GRE_CSUM)
-			nhoff += 4;
-		if(gre_flags & GRE_KEY)
-			nhoff += 4;
-		if(gre_flags & GRE_SEQ)
-			nhoff += 4;
-
-		if(proto == ETH_P_8021Q)
-		{
-			proto = load_half(skb,
-					  nhoff + offsetof(struct my_vlan_hdr,
-							   h_vlan_encapsulated_proto));
-			nhoff += sizeof(struct my_vlan_hdr);
-		}
-
-		if(proto == ETH_P_IP)
-			nhoff = parse_ip(skb, nhoff, &ip_proto, flow);
-		else if(proto == ETH_P_IPV6)
-			nhoff = parse_ipv6(skb, nhoff, &ip_proto, flow);
-		else
-			return false;
-		break;
-	}
 	case IPPROTO_IPIP:
 	{
-		nhoff = parse_ip(skb, nhoff, &ip_proto, flow);
+		iph = (struct iphdr *)((__u64)iph + sizeof(*iph));
+		if ((__u64)iph + 1 > (__u64)data_end) {
+			return false;
+		}
+		parse_ip(iph, &ip_proto, flow);
 		is_ipip = true;
-		break;
-	}
-	case IPPROTO_IPV6:
-	{
-		nhoff = parse_ipv6(skb, nhoff, &ip_proto, flow);
 		break;
 	}
 	default:
 		break;
 	}
 
-	if(interface_type == PHYSICAL_INTERFACE && ip_proto != IPPROTO_UDP && !is_ipip) return false;
-
+	// if(interface_type == PHYSICAL_INTERFACE && ip_proto != IPPROTO_UDP && !is_ipip) return false;
 	switch(ip_proto)
 	{
 	case IPPROTO_UDP:
 	{
-		nhoff = parse_udp(skb, nhoff, &ip_proto, flow, cur_time, &interface_type);
+		struct udphdr *udph = (struct udphdr *)((__u64)iph + sizeof(*iph));
+		if ((__u64)udph + 1 > (__u64)data_end) {
+			return false;
+		}
+		parse_udp(udph, &ip_proto, flow, cur_time, &interface_type);
 		break;
 	}
 	case IPPROTO_TCP:
 	{
-		nhoff = parse_tcp(skb, nhoff, &ip_proto, flow, cur_time, &interface_type);
+		struct tcphdr *tcph = (struct tcphdr *)((__u64)iph + sizeof(*iph));
+		if ((__u64)tcph + 1 > (__u64)data_end) {
+			return false;
+		}
+		parse_tcp(tcph, &ip_proto, flow, cur_time, &interface_type);
 		break;
 	}
 	default:
@@ -478,7 +399,21 @@ static __always_inline bool flow_dissector(struct __sk_buff *skb, struct bpf_flo
 	}
 
 	flow->ip_proto = ip_proto;
-	flow->thoff = (__u16)nhoff;
+
+	// char log1[] = "ifindex = %u, srcip = %u, dstip = %u\n";
+	// char log2[] = "seq = %u, sport = %d, dport = %d\n";
+	// char log3[]="SYN = %d, ACK = %d, FIN = %d\n";
+	// char log4[]="flow->ip_proto: %d, curtime = %llu\n";
+	// char log5[] = "skb_addr = %lld\n";
+	// bool SYN = flow->flag & (1 << 1);
+	// bool FIN = flow->flag & 1;
+	// bool ACK = flow->flag & (1 << 4);
+	// bpf_trace_printk(log1, sizeof(log1), flow->ifindex, flow->src, flow->dst);
+	// bpf_trace_printk(log2, sizeof(log2), flow->seq, flow->port16[0], flow->port16[1]);
+	// bpf_trace_printk(log3, sizeof(log3), SYN, ACK, FIN);
+	// bpf_trace_printk(log4, sizeof(log4), flow->ip_proto, *cur_time);
+	// bpf_trace_printk(log5, sizeof(log5), skb);
+
 	return true;
 }
 

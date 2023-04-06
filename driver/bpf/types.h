@@ -359,7 +359,6 @@ struct bpf_flow_keys {
 		__be32 ports;
 		__be16 port16[2];
 	};
-	__u16 thoff;
 	__u8 ip_proto;
 };
 

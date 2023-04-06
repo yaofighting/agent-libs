@@ -412,64 +412,90 @@ BPF_PROBE("net/", net_dev_start_xmit, net_dev_start_xmit_args)
 		return 0;
 	if (!settings->capture_enabled)
 		return 0;
-	if (!settings->skb_capture)
-		return 0;
+	// if (!settings->skb_capture)
+	// 	return 0;
 
 	struct sk_buff *skb;
 	char dev_name[16] = {0};
 
 #ifdef BPF_SUPPORTS_RAW_TRACEPOINTS
 	skb = ctx->skb;
-	bpf_probe_read((void *)dev_name, 16, ctx->dev->name);
+	// bpf_probe_read((void *)dev_name, 16, ctx->dev->name);
+	struct net_device *dev;
+	dev = _READ(skb->dev);
 #else
 	skb = (struct sk_buff*) ctx->skbaddr;
-	TP_DATA_LOC_READ(dev_name, name, 16);
+	// TP_DATA_LOC_READ(dev_name, name, 16);
+	struct net_device *dev;
+	dev = _READ(skb->dev);
 #endif
-
-	if(check_skb(skb, dev_name, settings->if_name) < 0)
-		return 0;
 
 	evt_type = PPME_NET_DEV_XMIT_E;
 
-	call_filler(ctx, ctx, evt_type, settings, UF_NEVER_DROP);
+	u32 ifindex = _READ(dev->ifindex);
+
+	u64 *focus_ifindex = bpf_map_lookup_elem(&focus_network_interface, &ifindex);
+	if(!focus_ifindex){
+		return 0;
+	}
+
+	struct bpf_flow_keys flow = {};
+	u64 cur_time = bpf_ktime_get_ns() + settings->boot_time;
+
+	flow.ifindex = ifindex;
+
+	if (!flow_dissector(skb, &flow, &cur_time, *focus_ifindex))
+		return 0;
 	return 0;
 }
 #endif
-/*
+
 BPF_PROBE("net/", netif_receive_skb, netif_receive_skb_args)
 {
+	enum ppm_event_type evt_type = PPME_TCP_PACKAGE_ANALYSIS_E;
 	struct sysdig_bpf_settings *settings;
-	enum ppm_event_type evt_type;
 	settings = get_bpf_settings();
 	if (!settings)
 		return 0;
+
 	if (!settings->capture_enabled)
 		return 0;
-	if (!settings->skb_capture)
-		return 0;
 
+	if (evt_type < PPM_EVENT_MAX && !settings->events_mask[evt_type]) {
+		return 0;
+	}
 	struct sk_buff *skb;
-	char dev_name[16] = {0};
 
 #ifdef BPF_SUPPORTS_RAW_TRACEPOINTS
 	skb = ctx->skb;
+	// bpf_probe_read((void *)dev_name, 16, ctx->dev->name);
 	struct net_device *dev;
 	dev = _READ(skb->dev);
-	bpf_probe_read((void *)dev_name, 16, dev->name);
 #else
 	skb = (struct sk_buff*) ctx->skbaddr;
-	TP_DATA_LOC_READ(dev_name, name, 16);
+	// TP_DATA_LOC_READ(dev_name, name, 16);
+	struct net_device *dev;
+	dev = _READ(skb->dev);
 #endif
+	
+	u32 ifindex = _READ(dev->ifindex);
 
-	if(check_skb(skb, dev_name, settings->if_name) < 0)
+	u64 *focus_ifindex = bpf_map_lookup_elem(&focus_network_interface, &ifindex);
+	if(!focus_ifindex){
+		return 0;
+	}
+
+	struct bpf_flow_keys flow = {};
+	u64 cur_time = bpf_ktime_get_ns() + settings->boot_time;
+
+	flow.ifindex = ifindex;
+
+	if (!flow_dissector(skb, &flow, &cur_time, *focus_ifindex))
 		return 0;
 
-	evt_type = PPME_NETIF_RECEIVE_SKB_E;
-
-	call_filler(ctx, ctx, evt_type, settings, UF_NEVER_DROP);
 	return 0;
 }
-*/
+
 
 BPF_KPROBE(tcp_drop)
 {
@@ -755,34 +781,34 @@ BPF_KPROBE(sock_sendmsg) {
 }
 #endif
 
-BPF_SOCKET_PROBE(tcp_analysis) 
-{
-	enum ppm_event_type evt_type = PPME_TCP_PACKAGE_ANALYSIS_E;
-	struct sysdig_bpf_settings *settings;
-	settings = get_bpf_settings();
-	if (!settings)
-		return 0;
+// BPF_SOCKET_PROBE(tcp_analysis) 
+// {
+// 	enum ppm_event_type evt_type = PPME_TCP_PACKAGE_ANALYSIS_E;
+// 	struct sysdig_bpf_settings *settings;
+// 	settings = get_bpf_settings();
+// 	if (!settings)
+// 		return 0;
 
-	if (!settings->capture_enabled)
-		return 0;
+// 	if (!settings->capture_enabled)
+// 		return 0;
 
-	if (evt_type < PPM_EVENT_MAX && !settings->events_mask[evt_type]) {
-		return 0;
-	}
-	u32 ifindex = skb->ifindex;
-	u64 *focus_ifindex = bpf_map_lookup_elem(&focus_network_interface, &ifindex);
-	if(!focus_ifindex){
-		return 0;
-	}
+// 	if (evt_type < PPM_EVENT_MAX && !settings->events_mask[evt_type]) {
+// 		return 0;
+// 	}
+// 	u32 ifindex = skb->ifindex;
+// 	u64 *focus_ifindex = bpf_map_lookup_elem(&focus_network_interface, &ifindex);
+// 	if(!focus_ifindex){
+// 		return 0;
+// 	}
 	
-	struct bpf_flow_keys flow = {};
-	u64 cur_time = bpf_ktime_get_ns() + settings->boot_time;
+// 	struct bpf_flow_keys flow = {};
+// 	u64 cur_time = bpf_ktime_get_ns() + settings->boot_time;
 
-	if (!flow_dissector(skb, &flow, &cur_time, *focus_ifindex)) 
-		return 0;
+// 	if (!flow_dissector(skb, &flow, &cur_time, *focus_ifindex)) 
+// 		return 0;
 
-	return 0;
-}
+// 	return 0;
+// }
 
 char kernel_ver[] __bpf_section("kernel_version") = UTS_RELEASE;
 

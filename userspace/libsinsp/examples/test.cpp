@@ -60,15 +60,15 @@ void test_tcp_packets_analyzer(sinsp *inspector)
 {
     int len = 0;
     tcp_handshake_analyzer hds_analyzer(inspector);
-    tcp_packets_analyzer tp_analyzer(inspector);
-    int32_t ret = inspector->get_tcp_handshake_rtt(elem, &len, max_len);
-    hds_analyzer.aggregate_handshake_info(elem, &len);  
+    // tcp_packets_analyzer tp_analyzer(inspector);
+    // int32_t ret = inspector->get_tcp_handshake_rtt(elem, &len, max_len);
+    // hds_analyzer.aggregate_handshake_info(elem, &len);  
         
-    int32_t ret2 = inspector->get_tcp_datainfo(tcp_data, &len, max_len);
-    tp_analyzer.get_total_tcp_packets(tcp_data, &len);
-    tp_analyzer.get_tcp_ack_delay(tcp_data, &len);
+    // int32_t ret2 = inspector->get_tcp_datainfo(tcp_data, &len, max_len);
+    // tp_analyzer.get_total_tcp_packets(tcp_data, &len);
+    // tp_analyzer.get_tcp_ack_delay(tcp_data, &len);
 
-    int32_t ret3 = inspector->get_tcp_raw_data(tcp_raw, &len, max_len);
+    // int32_t ret3 = inspector->get_tcp_raw_data(tcp_raw, &len, max_len);
     // printf("total number of tcp raw data = %d\n", len);
     // for(int i = 0;i < len; i++){
     //     bool SYN = tcp_raw[i].flag & (1 << 1);
@@ -127,7 +127,7 @@ int main(int argc, char **argv)
     }
 
     // for(int i=0;i<5;i++){
-    //     test_tcp_packets_analyzer(&inspector);
+        test_tcp_packets_analyzer(&inspector);
     //     cout << endl << "------------------------" << endl;
     //     sleep(1);
     // }
