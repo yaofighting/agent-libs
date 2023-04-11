@@ -26,7 +26,7 @@ or GPL2.txt for full copies of the license.
 #define IP_HOST 0x7F000001
 #define VXLAN_HLEN 8
 
-static __always_inline int get_proto_ports_offset(__u64 proto)
+static __always_inline int get_proto_ports_offset(__u8 proto)
 {
 	switch(proto)
 	{
@@ -54,7 +54,7 @@ static __always_inline int is_ip_fragment(struct iphdr *iph)
 	we use is_overlay field. Currently, we only focus on 'UDP+VXLAN'(by Flannel) and 'IPIP'(by Calico).
 */
 
-static __always_inline void parse_ip(struct iphdr *iph, __u64 *ip_proto, struct bpf_flow_keys *flow)
+static __always_inline void parse_ip(struct iphdr *iph, __u8 *ip_proto, struct bpf_flow_keys *flow)
 {
 	if(unlikely(is_ip_fragment(iph)))
 		*ip_proto = 0;
@@ -271,7 +271,7 @@ static __always_inline void send_tcp_rawdata(struct sysdig_bpf_settings *setting
 
 }
 
-static __always_inline void parse_tcp(struct tcphdr *tcph, __u64 *ip_proto, struct bpf_flow_keys *flow, u64 *cur_time, u64 *interface_type)
+static __always_inline void parse_tcp(struct tcphdr *tcph, __u8 *ip_proto, struct bpf_flow_keys *flow, u64 *cur_time, u64 *interface_type)
 {
 	flow->seq = __constant_htonl(_READ(tcph->seq));
 	flow->ack_seq = __constant_htonl(_READ(tcph->ack_seq));
@@ -299,7 +299,7 @@ static __always_inline void parse_tcp(struct tcphdr *tcph, __u64 *ip_proto, stru
 	return;
 }
 
-static __always_inline void parse_udp(struct udphdr *udph, __u64 *ip_proto, struct bpf_flow_keys *flow, u64 *cur_time, u64 *interface_type)
+static __always_inline void parse_udp(struct udphdr *udph, __u8 *ip_proto, struct bpf_flow_keys *flow, u64 *cur_time, u64 *interface_type)
 {
 	// parse UDP header
 	__u16 source = __constant_htons(_READ(udph->source));
@@ -307,50 +307,57 @@ static __always_inline void parse_udp(struct udphdr *udph, __u64 *ip_proto, stru
 	__u16 len = __constant_htons(_READ(udph->len));
 	__u16 check = __constant_htons(_READ(udph->check));
 
-	// char fmt1[] = "enter parse udp...dest = %d, vxlan_port = %d\n";
-	// bpf_trace_printk(fmt1, sizeof(fmt1), dest, vxlan_port);
-
 	if(dest == 4789 || dest == 8472) //VXLAN port
 	{
-		// char fmt[] = "get VXLAN protocol...dest = %d, vxlan_port = %d\n";
-		// bpf_trace_printk(fmt, sizeof(fmt), dest, vxlan_port);
+		struct iphdr *iph = (struct iphdr *)((__u64)udph + sizeof(*udph) + VXLAN_HLEN + ETH_HLEN);
 
-		// char fmt_ipo[] = "get out--src_ip = %u, out--dst_ip = %u\n";
-		// bpf_trace_printk(fmt_ipo, sizeof(fmt_ipo), flow->src, flow->dst);
-		struct iphdr *iph = (struct iphdr *)((__u64)udph + VXLAN_HLEN + ETH_HLEN);
+		parse_ip(iph, ip_proto, flow);
 
-		parse_ip(iph, &ip_proto, flow);
+		if(*ip_proto != IPPROTO_TCP) return;
 
-		parse_tcp(iph, &ip_proto, flow, cur_time, interface_type);
-		
-		// char fmt_ip[] = "get in--src_ip = %u, in--dst_ip = %u\n\n";
-		// bpf_trace_printk(fmt_ip, sizeof(fmt_ip), flow->src, flow->dst);
+		struct tcphdr *tcph = (struct tcphdr *)((__u64)iph + sizeof(*iph));
+
+		parse_tcp(tcph, &ip_proto, flow, cur_time, interface_type);
 	}
 }
 
-static __always_inline bool flow_dissector(struct sk_buff *skb, struct bpf_flow_keys *flow, u64 *cur_time, u64 interface_type)
+static __always_inline void reset_skb(void **head, void **data, __u16 *network_header)
+{
+	*network_header = (unsigned char *)(*data) - (unsigned char *)(*head);
+}
+
+static __always_inline bool flow_dissector(struct sk_buff *skb, struct bpf_flow_keys *flow, u64 *cur_time, u64 interface_type, u16 direction_type)
 {
 	void *head = _READ(skb->head);
 	void *pkt_data = _READ(skb->data);
 	u32 data_len = _READ(skb->len);
 	void *data_end = (void *)(data_len + (long)pkt_data);
+
 	__u16 mac_offset = _READ(skb->mac_header);
 	struct ethhdr *eth = (struct skbhdr *)((__u64)head + (__u64)mac_offset);
 	struct iphdr *iph;
+	__u16 ip_offset = _READ(skb->network_header);
+	if(direction_type == 0){ //fix when netif_receive_skb
+		reset_skb(&head, &pkt_data, &ip_offset);
+	}
 
-	__u64 nhoff = ETH_HLEN;
-	__u64 ip_proto;
+	__u8 ip_proto;
 	__u16 proto = _READ(eth->h_proto);
 	proto = htons(proto);
 
 	if(likely(proto == ETH_P_IP))
 	{
-		__u16 ip_offset = _READ(skb->network_header);
 		iph = (struct iphdr *)((__u64)head + (__u64)ip_offset);
+		if (unlikely((__u64)iph + 1 > (__u64)data_end)) {
+			return false;
+		}
 		parse_ip(iph, &ip_proto, flow); 
 	}
 	else
+	{
 		return false;
+	}
+		
 
 	if(flow->src == IP_HOST || flow->dst == IP_HOST)
 		return false; // host ip filter
@@ -373,12 +380,14 @@ static __always_inline bool flow_dissector(struct sk_buff *skb, struct bpf_flow_
 		break;
 	}
 
-	// if(interface_type == PHYSICAL_INTERFACE && ip_proto != IPPROTO_UDP && !is_ipip) return false;
+	if(interface_type == PHYSICAL_INTERFACE && ip_proto != IPPROTO_UDP && !is_ipip) return false;
+
 	switch(ip_proto)
 	{
 	case IPPROTO_UDP:
 	{
 		struct udphdr *udph = (struct udphdr *)((__u64)iph + sizeof(*iph));
+
 		if ((__u64)udph + 1 > (__u64)data_end) {
 			return false;
 		}
@@ -399,20 +408,6 @@ static __always_inline bool flow_dissector(struct sk_buff *skb, struct bpf_flow_
 	}
 
 	flow->ip_proto = ip_proto;
-
-	// char log1[] = "ifindex = %u, srcip = %u, dstip = %u\n";
-	// char log2[] = "seq = %u, sport = %d, dport = %d\n";
-	// char log3[]="SYN = %d, ACK = %d, FIN = %d\n";
-	// char log4[]="flow->ip_proto: %d, curtime = %llu\n";
-	// char log5[] = "skb_addr = %lld\n";
-	// bool SYN = flow->flag & (1 << 1);
-	// bool FIN = flow->flag & 1;
-	// bool ACK = flow->flag & (1 << 4);
-	// bpf_trace_printk(log1, sizeof(log1), flow->ifindex, flow->src, flow->dst);
-	// bpf_trace_printk(log2, sizeof(log2), flow->seq, flow->port16[0], flow->port16[1]);
-	// bpf_trace_printk(log3, sizeof(log3), SYN, ACK, FIN);
-	// bpf_trace_printk(log4, sizeof(log4), flow->ip_proto, *cur_time);
-	// bpf_trace_printk(log5, sizeof(log5), skb);
 
 	return true;
 }

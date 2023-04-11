@@ -402,37 +402,27 @@ int bpf_sched_process_fork(struct sched_process_fork_args *ctx)
 }
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0)
-BPF_PROBE("net/", net_dev_start_xmit, net_dev_start_xmit_args)
+BPF_KPROBE(dev_hard_start_xmit) 
 {
+	enum ppm_event_type evt_type = PPME_TCP_PACKAGE_ANALYSIS_E;
 	struct sysdig_bpf_settings *settings;
-	enum ppm_event_type evt_type;
 	settings = get_bpf_settings();
 	if (!settings)
 		return 0;
+
 	if (!settings->capture_enabled)
 		return 0;
-	// if (!settings->skb_capture)
-	// 	return 0;
 
-	struct sk_buff *skb;
-	char dev_name[16] = {0};
+	if (evt_type < PPM_EVENT_MAX && !settings->events_mask[evt_type]) {
+		return 0;
+	}
 
-#ifdef BPF_SUPPORTS_RAW_TRACEPOINTS
-	skb = ctx->skb;
-	// bpf_probe_read((void *)dev_name, 16, ctx->dev->name);
-	struct net_device *dev;
-	dev = _READ(skb->dev);
-#else
-	skb = (struct sk_buff*) ctx->skbaddr;
-	// TP_DATA_LOC_READ(dev_name, name, 16);
-	struct net_device *dev;
-	dev = _READ(skb->dev);
-#endif
+	struct pt_regs *args = (struct pt_regs*)ctx;
+	struct sk_buff *skb = (struct sk_buff *)_READ(PT_REGS_PARAM1(args));
+	struct net_device *dev = (struct net_device *)_READ(PT_REGS_PARAM2(args));
 
-	evt_type = PPME_NET_DEV_XMIT_E;
-
-	u32 ifindex = _READ(dev->ifindex);
+	u32 ifindex;
+	ifindex = _READ(dev->ifindex);
 
 	u64 *focus_ifindex = bpf_map_lookup_elem(&focus_network_interface, &ifindex);
 	if(!focus_ifindex){
@@ -443,12 +433,11 @@ BPF_PROBE("net/", net_dev_start_xmit, net_dev_start_xmit_args)
 	u64 cur_time = bpf_ktime_get_ns() + settings->boot_time;
 
 	flow.ifindex = ifindex;
-
-	if (!flow_dissector(skb, &flow, &cur_time, *focus_ifindex))
+	if (!flow_dissector(skb, &flow, &cur_time, *focus_ifindex, 1))
 		return 0;
+
 	return 0;
 }
-#endif
 
 BPF_PROBE("net/", netif_receive_skb, netif_receive_skb_args)
 {
@@ -468,12 +457,10 @@ BPF_PROBE("net/", netif_receive_skb, netif_receive_skb_args)
 
 #ifdef BPF_SUPPORTS_RAW_TRACEPOINTS
 	skb = ctx->skb;
-	// bpf_probe_read((void *)dev_name, 16, ctx->dev->name);
 	struct net_device *dev;
 	dev = _READ(skb->dev);
 #else
 	skb = (struct sk_buff*) ctx->skbaddr;
-	// TP_DATA_LOC_READ(dev_name, name, 16);
 	struct net_device *dev;
 	dev = _READ(skb->dev);
 #endif
@@ -490,7 +477,7 @@ BPF_PROBE("net/", netif_receive_skb, netif_receive_skb_args)
 
 	flow.ifindex = ifindex;
 
-	if (!flow_dissector(skb, &flow, &cur_time, *focus_ifindex))
+	if (!flow_dissector(skb, &flow, &cur_time, *focus_ifindex, 0))
 		return 0;
 
 	return 0;
