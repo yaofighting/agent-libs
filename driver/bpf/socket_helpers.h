@@ -93,7 +93,7 @@ static __always_inline struct tcp_tuple new_tuple(struct bpf_flow_keys *flow)
 	return cur_tuple;
 }
 
-static __always_inline void init_buffer_pointer(u64 **head, u64 **tail, int head_key, int tail_key)
+static __always_inline void init_buffer_pointer(u64 **head, u64 **tail, u64 head_key, u64 tail_key)
 {
 	*head = bpf_map_lookup_elem(&tcp_buffer_pointer, &head_key);
 	*tail = bpf_map_lookup_elem(&tcp_buffer_pointer, &tail_key);

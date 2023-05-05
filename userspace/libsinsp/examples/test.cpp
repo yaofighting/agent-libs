@@ -68,15 +68,15 @@ void test_tcp_packets_analyzer(sinsp *inspector)
     // tp_analyzer.get_total_tcp_packets(tcp_data, &len);
     // tp_analyzer.get_tcp_ack_delay(tcp_data, &len);
 
-    // int32_t ret3 = inspector->get_tcp_raw_data(tcp_raw, &len, max_len);
-    // printf("total number of tcp raw data = %d\n", len);
-    // for(int i = 0;i < len; i++){
-    //     bool SYN = tcp_raw[i].flag & (1 << 1);
-    //     bool ACK = tcp_raw[i].flag & (1 << 4)
-    //     printf("get tcp raw data---src = %u, dst = %u, sport = %u, dport = %u, ifindex = %d, SYN = %d, ACK = %d, seq = %u, ack_seq = %u, time = %llu\n",
-    //     tcp_raw[i].tp.saddr, tcp_raw[i].tp.daddr, tcp_raw[i].tp.sport, tcp_raw[i].tp.dport, tcp_raw[i].tp.ifindex, SYN, ACK,
-    //     tcp_raw[i].seq, tcp_raw[i].ack_seq, tcp_raw[i].timestamp);
-    // }
+    int32_t ret3 = inspector->get_tcp_raw_data(tcp_raw, &len, max_len);
+    printf("total number of tcp raw data = %d\n", len);
+    for(int i = 0;i < len; i++){
+        bool SYN = tcp_raw[i].flag & (1 << 1);
+        bool ACK = tcp_raw[i].flag & (1 << 4);
+        printf("get tcp raw data---src = %u, dst = %u, sport = %u, dport = %u, ifindex = %d, SYN = %d, ACK = %d, seq = %u, ack_seq = %u, time = %llu\n",
+        tcp_raw[i].tp.saddr, tcp_raw[i].tp.daddr, tcp_raw[i].tp.sport, tcp_raw[i].tp.dport, tcp_raw[i].tp.ifindex, SYN, ACK,
+        tcp_raw[i].seq, tcp_raw[i].ack_seq, tcp_raw[i].timestamp);
+    }
     
 }
 
@@ -127,7 +127,7 @@ int main(int argc, char **argv)
     }
 
     // for(int i=0;i<5;i++){
-        test_tcp_packets_analyzer(&inspector);
+    //     test_tcp_packets_analyzer(&inspector);
     //     cout << endl << "------------------------" << endl;
     //     sleep(1);
     // }

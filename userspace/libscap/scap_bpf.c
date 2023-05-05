@@ -1637,7 +1637,7 @@ int32_t scap_bpf_load(scap_t *handle, const char *bpf_probe)
 		but in case of a change in the MAP type, 
 		we still initialize it. 
 	*/
-	int pointer;
+	uint64_t pointer;
 	uint64_t buffer_pointers[handle->m_ncpus];
 	memset(buffer_pointers, 0, sizeof(buffer_pointers));
 	for(pointer = 0; pointer < TCP_POINTER_COUNTS; pointer++)
@@ -1813,7 +1813,8 @@ int32_t scap_bpf_init_focus_network_interface(scap_t* handle, int ifindex[], int
 	uint64_t val = interface_type;
 	while(ifindex[count] != -1)
 	{
-		if(bpf_map_update_elem(handle->m_bpf_map_fds[SYSDIG_FOCUS_NETWORK_INTERFACE], &ifindex[count], &val, BPF_ANY) != 0)
+		uint32_t k = ifindex[count];
+		if(bpf_map_update_elem(handle->m_bpf_map_fds[SYSDIG_FOCUS_NETWORK_INTERFACE], &k, &val, BPF_ANY) != 0)
 		{
 			snprintf(handle->m_lasterr, SCAP_LASTERR_SIZE, "SYSDIG_FOCUS_NETWORK_INTERFACE bpf_map_update_elem < 0");
 			return SCAP_FAILURE;
@@ -1825,7 +1826,7 @@ int32_t scap_bpf_init_focus_network_interface(scap_t* handle, int ifindex[], int
 
 int32_t scap_bpf_get_tcp_handshake_rtt(scap_t* handle, struct tcp_handshake_buffer_elem results[], int *reslen, int max_len)
 {
-	int h = TCP_HANDSHAKE_BUFFER_HEAD, t = TCP_HANDSHAKE_BUFFER_TAIL, i;
+	uint64_t h = TCP_HANDSHAKE_BUFFER_HEAD, t = TCP_HANDSHAKE_BUFFER_TAIL, i;
 	int count = 0;
 	uint64_t heads[handle->m_ncpus];
 	uint64_t tails[handle->m_ncpus];
@@ -1843,7 +1844,7 @@ int32_t scap_bpf_get_tcp_handshake_rtt(scap_t* handle, struct tcp_handshake_buff
 		// printf("CPU id = %d. the number of handshake-rtt: %d, head = %d, tail = %d\n", i, tails[i] - heads[i], heads[i], tails[i]);
 		while(heads[i] != tails[i])
 		{
-			int ret = bpf_map_lookup_elem(handle->m_bpf_map_fds[SYSDIG_HANDSHAKE_BUFFER], (uint32_t *)&heads[i], elems);
+			int ret = bpf_map_lookup_elem(handle->m_bpf_map_fds[SYSDIG_HANDSHAKE_BUFFER], &heads[i], elems);
 			if(ret == 0 && count < max_len)
 			{
 				// printf("heads[i]: %d, src: %u, dst: %u, sport: %d, dport: %d, synrtt: %u, ackrtt: %u, timestamp: %llu\n", heads[i], elems[i].tp.saddr, elems[i].tp.daddr, elems[i].tp.sport, elems[i].tp.dport, 
@@ -1888,7 +1889,7 @@ int32_t scap_bpf_select_earliest_##name(scap_t* handle, uint64_t heads[], uint64
 	uint64_t min_time = 0xffffffffffffffff;																	\
 	for(i = 0;i < handle->m_ncpus; i++)																						\
 	{																															\
-		if(heads[i] != tails[i] && bpf_map_lookup_elem(handle->m_bpf_map_fds[map_type], (uint32_t *)&heads[i], elems) == 0)		\
+		if(heads[i] != tails[i] && bpf_map_lookup_elem(handle->m_bpf_map_fds[map_type], &heads[i], elems) == 0)		\
 		{																														\
 			if(elems[i].timestamp < min_time)																					\
 			{																													\
@@ -1907,7 +1908,7 @@ GET_EARLIST_DATA(tcpraw, struct tcp_raw_data, SYSDIG_TCP_RAWDATA_BUFFER)
 
 int32_t scap_bpf_get_tcp_datainfo(scap_t* handle, struct tcp_datainfo results[], int *reslen, int max_len)
 {
-	int h = TCP_DATAINFO_BUFFER_HEAD, t = TCP_DATAINFO_BUFFER_TAIL, i;
+	uint64_t h = TCP_DATAINFO_BUFFER_HEAD, t = TCP_DATAINFO_BUFFER_TAIL, i;
 
 	uint32_t count = 0, pkgcount = 0;
 
@@ -1957,7 +1958,7 @@ int32_t scap_bpf_get_tcp_datainfo(scap_t* handle, struct tcp_datainfo results[],
 
 int32_t scap_bpf_get_tcp_rawdata(scap_t* handle, struct tcp_raw_data results[], int *reslen, int max_len)
 {
-	int h = TCP_RAWDATA_BUFFER_HEAD, t = TCP_RAWDATA_BUFFER_TAIL, i;
+	uint64_t h = TCP_RAWDATA_BUFFER_HEAD, t = TCP_RAWDATA_BUFFER_TAIL, i;
 
 	uint32_t count = 0, pkgcount = 0;
 
