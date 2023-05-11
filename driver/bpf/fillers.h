@@ -5215,7 +5215,57 @@ FILLER(cpu_analysis_e, false)
     return 0;
 }
 
-FILLER(tcp_package_analysis_e, false)
+static __always_inline int __bpf_tcp_analysis(struct filler_data *data, struct bpf_flow_keys *flow, int type)
+{
+    int res;
+
+	// {"tuple", PT_SOCKTUPLE, PF_NA}
+	int size = 1 + 4 + 2 + 4 + 2;
+	data->buf[data->state->tail_ctx.curoff & SCRATCH_SIZE_HALF] = AF_INET;
+	memcpy(&data->buf[(data->state->tail_ctx.curoff + 1) & SCRATCH_SIZE_HALF], &flow->src, 4);
+	memcpy(&data->buf[(data->state->tail_ctx.curoff + 5) & SCRATCH_SIZE_HALF], &flow->port16[0], 2);
+	memcpy(&data->buf[(data->state->tail_ctx.curoff + 7) & SCRATCH_SIZE_HALF], &flow->dst, 4);
+	memcpy(&data->buf[(data->state->tail_ctx.curoff + 11) & SCRATCH_SIZE_HALF], &flow->port16[1], 2);
+	data->curarg_already_on_frame = true;
+	res = bpf_val_to_ring_len(data, 0, size);
+	// {"ifindex", PT_UINT32, PF_DEC}
+	res = bpf_val_to_ring(data, flow->ifindex);
+	// {"flag", PT_UINT16, PF_DEC}
+	res = bpf_val_to_ring(data, flow->flag);
+	// {"seq", PT_UINT32, PF_DEC}
+	res = bpf_val_to_ring(data, flow->seq);
+	// {"ack_seq", PT_UINT32, PF_DEC}
+	res = bpf_val_to_ring(data, flow->ack_seq);
+	// {"type", PT_UINT16, PF_DEC}
+	res = bpf_val_to_ring(data, type);
+
+    return res;
+}
+
+static __always_inline int  bpf_tcp_analysis(void *ctx, struct bpf_flow_keys *flow, int type)
+{
+    struct filler_data data;
+    int res;
+
+    res = init_filler_data(ctx, &data, false);
+    if (res == PPM_SUCCESS) {
+        if (!data.state->tail_ctx.len)
+            write_evt_hdr(&data);
+
+        res = __bpf_tcp_analysis(&data, flow, type);
+    }
+
+    if (res == PPM_SUCCESS)
+        res = push_evt_frame(ctx, &data);
+
+    if (data.state)
+        data.state->tail_ctx.prev_res = res;
+
+    bpf_kp_terminate_filler(&data);
+    return 0;
+}
+
+FILLER(tcp_packet_analysis_e, false)
 {
 	return 0;
 }

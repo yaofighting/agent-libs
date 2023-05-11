@@ -23,7 +23,6 @@ limitations under the License.
 #include <ifaddrs.h>
 #include <netdb.h>
 #include "util.h"
-#include "tcp_package_test.h"
 
 using namespace std;
 
@@ -51,34 +50,6 @@ Options:
 //   "evt.category=process or evt.category=net"
 //   "evt.dir=< and (evt.category=net or (evt.type=execveat or evt.type=execve or evt.type=clone or evt.type=fork or evt.type=vfork))"
 // 
-
-const int max_len = 500000;
-tcp_handshake_buffer_elem *elem = new tcp_handshake_buffer_elem[max_len];
-tcp_datainfo *tcp_data = new tcp_datainfo[max_len];
-tcp_raw_data *tcp_raw = new tcp_raw_data[max_len];
-void test_tcp_packets_analyzer(sinsp *inspector)
-{
-    int len = 0;
-    tcp_handshake_analyzer hds_analyzer(inspector);
-    // tcp_packets_analyzer tp_analyzer(inspector);
-    // int32_t ret = inspector->get_tcp_handshake_rtt(elem, &len, max_len);
-    // hds_analyzer.aggregate_handshake_info(elem, &len);  
-        
-    // int32_t ret2 = inspector->get_tcp_datainfo(tcp_data, &len, max_len);
-    // tp_analyzer.get_total_tcp_packets(tcp_data, &len);
-    // tp_analyzer.get_tcp_ack_delay(tcp_data, &len);
-
-    int32_t ret3 = inspector->get_tcp_raw_data(tcp_raw, &len, max_len);
-    printf("total number of tcp raw data = %d\n", len);
-    for(int i = 0;i < len; i++){
-        bool SYN = tcp_raw[i].flag & (1 << 1);
-        bool ACK = tcp_raw[i].flag & (1 << 4);
-        printf("get tcp raw data---src = %u, dst = %u, sport = %u, dport = %u, ifindex = %d, SYN = %d, ACK = %d, seq = %u, ack_seq = %u, time = %llu\n",
-        tcp_raw[i].tp.saddr, tcp_raw[i].tp.daddr, tcp_raw[i].tp.sport, tcp_raw[i].tp.dport, tcp_raw[i].tp.ifindex, SYN, ACK,
-        tcp_raw[i].seq, tcp_raw[i].ack_seq, tcp_raw[i].timestamp);
-    }
-    
-}
 
 int main(int argc, char **argv)
 {
@@ -126,12 +97,6 @@ int main(int argc, char **argv)
         }
     }
 
-    // for(int i=0;i<5;i++){
-    //     test_tcp_packets_analyzer(&inspector);
-    //     cout << endl << "------------------------" << endl;
-    //     sleep(1);
-    // }
-
     while(!g_interrupted)
     {
         sinsp_evt* ev = NULL;
@@ -153,6 +118,22 @@ int main(int argc, char **argv)
         {
             string cmdline;
             sinsp_threadinfo::populate_cmdline(cmdline, thread);
+
+            if(ev->get_type() == PPME_TCP_PACKET_ANALYSIS_E){
+                auto tp = ev->get_param_value_raw("tuple")->m_val;
+                auto ifindex = ev->get_param_value_raw("ifindex")->m_val;
+                uint16_t flag = *(uint16_t *)(ev->get_param_value_raw("flag")->m_val);
+                bool SYN = flag & (1 << 1);
+                bool ACK = flag & (1 << 4);
+                auto seq = ev->get_param_value_raw("seq")->m_val;
+                auto ack_seq = ev->get_param_value_raw("ack_seq")->m_val;
+                auto type = ev->get_param_value_raw("type")->m_val;
+                printf("get tcp raw data --- src = %u, sport = %u,  dst = %u, dport = %u, ifindex = %d, direction_type = %d, SYN = %d, ACK = %d, seq = %u, ack_seq = %u, time = %llu\n",
+                    *(uint32_t *)(tp + 1), *(uint16_t *)(tp + 5), *(uint32_t *)(tp + 7),
+                    *(uint16_t *)(tp + 11), *(uint16_t *)type, *(uint32_t *)ifindex, SYN, ACK, *(uint32_t *)seq, *(uint32_t *)ack_seq,
+                    ev->get_ts()
+                );
+            }
 
             if(thread->is_main_thread())
             {

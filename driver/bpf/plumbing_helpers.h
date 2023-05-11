@@ -687,11 +687,13 @@ static __always_inline bool prepare_filler(void *ctx,
 	cpu = bpf_get_smp_processor_id();
 
 	state = get_local_state(cpu);
-	if (!state)
+	if (!state){
 		return false;
+	}
 
-	if (!acquire_local_state(state))
+	if (!acquire_local_state(state)){
 		return false;
+	}
 
 	if (cpu == 0 && state->hotplug_cpu != 0) {
 		evt_type = PPME_CPU_HOTPLUG_E;
@@ -702,9 +704,10 @@ static __always_inline bool prepare_filler(void *ctx,
 	reset_tail_ctx(state, evt_type, ts);
 
 	/* drop_event can change state->tail_ctx.evt_type */
-	if (drop_event(stack_ctx, state, evt_type, settings, drop_flags))
+	if (drop_event(stack_ctx, state, evt_type, settings, drop_flags)){
 		goto cleanup;
-
+	}
+	
 	++state->n_evts;
 
 	filler_info = get_event_filler_info(state->tail_ctx.evt_type);
@@ -712,7 +715,7 @@ static __always_inline bool prepare_filler(void *ctx,
 		goto cleanup;
 	return true;
 
-	cleanup:
+cleanup:
 	release_local_state(state);
 	return false;
 }

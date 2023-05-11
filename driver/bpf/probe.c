@@ -404,7 +404,7 @@ int bpf_sched_process_fork(struct sched_process_fork_args *ctx)
 
 BPF_KPROBE(dev_hard_start_xmit) 
 {
-	enum ppm_event_type evt_type = PPME_TCP_PACKAGE_ANALYSIS_E;
+	enum ppm_event_type evt_type = PPME_TCP_PACKET_ANALYSIS_E;
 	struct sysdig_bpf_settings *settings;
 	settings = get_bpf_settings();
 	if (!settings)
@@ -430,18 +430,27 @@ BPF_KPROBE(dev_hard_start_xmit)
 	}
 
 	struct bpf_flow_keys flow = {};
-	u64 cur_time = bpf_ktime_get_ns() + settings->boot_time;
 
 	flow.ifindex = ifindex;
-	if (!flow_dissector(skb, &flow, &cur_time, *focus_ifindex, 1))
-		return 0;
+
+
+	if(prepare_filler(ctx, ctx, evt_type, settings, UF_NEVER_DROP)) {
+		if(flow_dissector(skb, &flow, *focus_ifindex, 1)){
+			bpf_tcp_analysis(ctx, &flow, SEND_PACKET);
+		}else{
+			struct sysdig_bpf_per_cpu_state *state = get_local_state(bpf_get_smp_processor_id());
+			if (!state)
+				return 0;
+			release_local_state(state);
+		}
+	}
 
 	return 0;
 }
 
 BPF_PROBE("net/", netif_receive_skb, netif_receive_skb_args)
 {
-	enum ppm_event_type evt_type = PPME_TCP_PACKAGE_ANALYSIS_E;
+	enum ppm_event_type evt_type = PPME_TCP_PACKET_ANALYSIS_E;
 	struct sysdig_bpf_settings *settings;
 	settings = get_bpf_settings();
 	if (!settings)
@@ -473,12 +482,20 @@ BPF_PROBE("net/", netif_receive_skb, netif_receive_skb_args)
 	}
 
 	struct bpf_flow_keys flow = {};
-	u64 cur_time = bpf_ktime_get_ns() + settings->boot_time;
 
 	flow.ifindex = ifindex;
 
-	if (!flow_dissector(skb, &flow, &cur_time, *focus_ifindex, 0))
-		return 0;
+
+	if(prepare_filler(ctx, ctx, evt_type, settings, UF_NEVER_DROP)) {
+		if(flow_dissector(skb, &flow, *focus_ifindex, 0)){
+			bpf_tcp_analysis(ctx, &flow, RECEIVE_PACKET);
+		}else{
+			struct sysdig_bpf_per_cpu_state *state = get_local_state(bpf_get_smp_processor_id());
+			if (!state)
+				return 0;
+			release_local_state(state);
+		}
+	}
 
 	return 0;
 }
@@ -767,35 +784,6 @@ BPF_KPROBE(sock_sendmsg) {
 	return 0;
 }
 #endif
-
-// BPF_SOCKET_PROBE(tcp_analysis) 
-// {
-// 	enum ppm_event_type evt_type = PPME_TCP_PACKAGE_ANALYSIS_E;
-// 	struct sysdig_bpf_settings *settings;
-// 	settings = get_bpf_settings();
-// 	if (!settings)
-// 		return 0;
-
-// 	if (!settings->capture_enabled)
-// 		return 0;
-
-// 	if (evt_type < PPM_EVENT_MAX && !settings->events_mask[evt_type]) {
-// 		return 0;
-// 	}
-// 	u32 ifindex = skb->ifindex;
-// 	u64 *focus_ifindex = bpf_map_lookup_elem(&focus_network_interface, &ifindex);
-// 	if(!focus_ifindex){
-// 		return 0;
-// 	}
-	
-// 	struct bpf_flow_keys flow = {};
-// 	u64 cur_time = bpf_ktime_get_ns() + settings->boot_time;
-
-// 	if (!flow_dissector(skb, &flow, &cur_time, *focus_ifindex)) 
-// 		return 0;
-
-// 	return 0;
-// }
 
 char kernel_ver[] __bpf_section("kernel_version") = UTS_RELEASE;
 

@@ -273,36 +273,22 @@ enum sysdig_map_types {
 	SYSDIG_LOCAL_STATE_MAP = 9,
 	SYSDIG_RTT_STATISTICS = 10,
 	SYSDIG_STASH_TUPLE_MAP = 11,
-	SYSDIG_HANDSHAKE_MAP  = 12,
-	SYSDIG_HANDSHAKE_BUFFER = 13,
-	SYSDIG_TCP_DATAINFO_MAP = 14,
-	SYSDIG_TCP_DATAINFO_BUFFER = 15,
-	SYSDIG_BUFFER_POINTER = 16,
-	SYSDIG_FOCUS_NETWORK_INTERFACE = 17,
-	SYSDIG_TCP_RAWDATA_BUFFER = 18,
+	SYSDIG_FOCUS_NETWORK_INTERFACE = 12,
 #ifndef BPF_SUPPORTS_RAW_TRACEPOINTS
-	SYSDIG_STASH_MAP = 19,
+	SYSDIG_STASH_MAP = 13,
 #endif
 };
 
 enum interface_types {
 	PHYSICAL_INTERFACE = 1, 
 	CONTAINER_INTERFACE = 2,
+	NETWORK_DEVICE_INTERFACE = 3, //cni0, flannel.1, etc.
 };
 
-
-enum tcp_buffer_pointer_types {
-	TCP_HANDSHAKE_BUFFER_HEAD = 0,
-	TCP_HANDSHAKE_BUFFER_TAIL = 1,
-	TCP_DATAINFO_BUFFER_HEAD = 2,
-	TCP_DATAINFO_BUFFER_TAIL = 3,
-	TCP_RAWDATA_BUFFER_HEAD = 4,
-	TCP_RAWDATA_BUFFER_TAIL = 5,
-
-	TCP_POINTER_COUNTS
+enum interface_direction_type {
+	SEND_PACKET = 1,
+	RECEIVE_PACKET = 2,
 };
-
-#define MAX_BUFFER_LEN (1024 * 2048) //for tcp ring buffer
 
 struct sysdig_bpf_settings {
 	uint64_t boot_time;
@@ -368,6 +354,7 @@ tcp raw data.
 struct tcp_raw_data {  //tcp raw data in buffer
 	struct tcp_tuple tp;
 	__u16 flag;
+	__u16 type; //from netif_receive_skb or dev_hard_net_xmit
 	__be32 seq;
 	__be32 ack_seq;
 	__u64 timestamp;
@@ -381,29 +368,7 @@ struct tcp_handshake_rtt { //tcp_handshake_map value
 	__s64 ackrtt;
 };
 
-struct tcp_handshake_buffer_elem {  //tcp handshake info in buffer
-	struct tcp_tuple tp;
-	__s64 synrtt;
-	__s64 ackrtt;
-	__u64 timestamp;
-};
 
-/*
-tcp datainfo analysis structure.
-*/
-
-struct tcp_datainfo_last { //tcp_datainfo_map value
-	bool last_fin; //last package with FIN flag
-	__u64 package_counts; 
-};
-
-struct tcp_datainfo {
-	struct tcp_tuple tp;
-	__be32 seq;
-	__be32 ack_seq;
-	__u64 timestamp;
-	__u64 package_counts; //total counts with this tuple
-};
 
 #endif
 

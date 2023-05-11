@@ -326,8 +326,8 @@ std::string get_event_type(uint16_t type)
         case PPME_SOCKET_RECVMMSG_E:
         case PPME_SOCKET_RECVMMSG_X: return "recvmmsg";
 
-        case PPME_TCP_PACKAGE_ANALYSIS_E:
-        case PPME_TCP_PACKAGE_ANALYSIS_X: return "tcphandshake";
+        case PPME_TCP_PACKET_ANALYSIS_E:
+        case PPME_TCP_PACKET_ANALYSIS_X: return "tcp_packet";
         default: return "UNKNOWN " + to_string(type);
     };
 }

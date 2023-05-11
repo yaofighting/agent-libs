@@ -107,40 +107,40 @@ struct bpf_map_def __bpf_section("maps") stash_tuple_map = {
 };
 
 
-struct bpf_map_def __bpf_section("maps") tcp_handshake_map = {
-	.type = BPF_MAP_TYPE_HASH,
-	.key_size = sizeof(struct tcp_tuple),
-	.value_size = sizeof(struct tcp_handshake_rtt),
-	.max_entries = 65535,
-};
+// struct bpf_map_def __bpf_section("maps") tcp_handshake_map = {
+// 	.type = BPF_MAP_TYPE_HASH,
+// 	.key_size = sizeof(struct tcp_tuple),
+// 	.value_size = sizeof(struct tcp_handshake_rtt),
+// 	.max_entries = 65535,
+// };
 
-struct bpf_map_def __bpf_section("maps") tcp_handshake_buffer = {
-	.type = BPF_MAP_TYPE_PERCPU_HASH,
-	.key_size = sizeof(u64),
-	.value_size = sizeof(struct tcp_handshake_buffer_elem),  
-	.max_entries = MAX_BUFFER_LEN,
-};
+// struct bpf_map_def __bpf_section("maps") tcp_handshake_buffer = {
+// 	.type = BPF_MAP_TYPE_PERCPU_HASH,
+// 	.key_size = sizeof(u64),
+// 	.value_size = sizeof(struct tcp_handshake_buffer_elem),  
+// 	.max_entries = MAX_BUFFER_LEN,
+// };
 
-struct bpf_map_def __bpf_section("maps") tcp_datainfo_map = {
-	.type = BPF_MAP_TYPE_HASH,
-	.key_size = sizeof(struct tcp_tuple),
-	.value_size = sizeof(struct tcp_datainfo_last),  
-	.max_entries = 65535,
-};
+// struct bpf_map_def __bpf_section("maps") tcp_datainfo_map = {
+// 	.type = BPF_MAP_TYPE_HASH,
+// 	.key_size = sizeof(struct tcp_tuple),
+// 	.value_size = sizeof(struct tcp_datainfo_last),  
+// 	.max_entries = 65535,
+// };
 
-struct bpf_map_def __bpf_section("maps") tcp_datainfo_buffer = {
-	.type = BPF_MAP_TYPE_PERCPU_HASH,
-	.key_size = sizeof(u64),
-	.value_size = sizeof(struct tcp_datainfo),  
-	.max_entries = MAX_BUFFER_LEN,
-};
+// struct bpf_map_def __bpf_section("maps") tcp_datainfo_buffer = {
+// 	.type = BPF_MAP_TYPE_PERCPU_HASH,
+// 	.key_size = sizeof(u64),
+// 	.value_size = sizeof(struct tcp_datainfo),  
+// 	.max_entries = MAX_BUFFER_LEN,
+// };
 
-struct bpf_map_def __bpf_section("maps") tcp_buffer_pointer = {
-	.type = BPF_MAP_TYPE_PERCPU_HASH,
-	.key_size = sizeof(u64),
-	.value_size = sizeof(u64), //this type is u64 because all array elements are aligned to 8 bytes.
-	.max_entries = 16,
-};
+// struct bpf_map_def __bpf_section("maps") tcp_buffer_pointer = {
+// 	.type = BPF_MAP_TYPE_PERCPU_HASH,
+// 	.key_size = sizeof(u64),
+// 	.value_size = sizeof(u64), //this type is u64 because all array elements are aligned to 8 bytes.
+// 	.max_entries = 16,
+// };
 
 struct bpf_map_def __bpf_section("maps") focus_network_interface = {
 	.type = BPF_MAP_TYPE_HASH,
@@ -149,12 +149,12 @@ struct bpf_map_def __bpf_section("maps") focus_network_interface = {
 	.max_entries = 1024,
 };
 
-struct bpf_map_def __bpf_section("maps") tcp_rawdata_buffer = {
-	.type = BPF_MAP_TYPE_PERCPU_HASH,
-	.key_size = sizeof(u64),
-	.value_size = sizeof(struct tcp_raw_data),  
-	.max_entries = MAX_BUFFER_LEN,
-};
+// struct bpf_map_def __bpf_section("maps") tcp_rawdata_buffer = {
+// 	.type = BPF_MAP_TYPE_PERCPU_HASH,
+// 	.key_size = sizeof(u64),
+// 	.value_size = sizeof(struct tcp_raw_data),  
+// 	.max_entries = MAX_BUFFER_LEN,
+// };
 
 #ifndef BPF_SUPPORTS_RAW_TRACEPOINTS
 struct bpf_map_def __bpf_section("maps") stash_map = {
