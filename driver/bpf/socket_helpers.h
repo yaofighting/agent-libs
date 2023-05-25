@@ -107,6 +107,7 @@ static __always_inline bool parse_tcp(struct tcphdr *tcph, __u8 *ip_proto, struc
 	flow->ack_seq = __constant_htonl(_READ(tcph->ack_seq));
 	bpf_probe_read(&flow->flag, sizeof(flow->flag), (void *)tcph + 12);
 	flow->flag = __constant_htons(flow->flag);
+	flow->window = __constant_htons(_READ(tcph->window));
 
 	
 	return true;

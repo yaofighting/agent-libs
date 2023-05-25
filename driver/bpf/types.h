@@ -346,6 +346,7 @@ struct bpf_flow_keys {
 		__be16 port16[2];
 	};
 	__u8 ip_proto;
+	__be32 window;
 };
 
 /*

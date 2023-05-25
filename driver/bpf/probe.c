@@ -424,10 +424,10 @@ BPF_KPROBE(dev_hard_start_xmit)
 	u32 ifindex;
 	ifindex = _READ(dev->ifindex);
 
-	u64 *focus_ifindex = bpf_map_lookup_elem(&focus_network_interface, &ifindex);
-	if(!focus_ifindex){
-		return 0;
-	}
+//	u64 *focus_ifindex = bpf_map_lookup_elem(&focus_network_interface, &ifindex);
+//	if(!focus_ifindex){
+//		return 0;
+//	}
 
 	struct bpf_flow_keys flow = {};
 
@@ -435,7 +435,7 @@ BPF_KPROBE(dev_hard_start_xmit)
 
 
 	if(prepare_filler(ctx, ctx, evt_type, settings, UF_NEVER_DROP)) {
-		if(flow_dissector(skb, &flow, *focus_ifindex, 1)){
+		if(flow_dissector(skb, &flow, 2, 1)){
 			bpf_tcp_analysis(ctx, &flow, SEND_PACKET);
 		}else{
 			struct sysdig_bpf_per_cpu_state *state = get_local_state(bpf_get_smp_processor_id());
@@ -476,18 +476,19 @@ BPF_PROBE("net/", netif_receive_skb, netif_receive_skb_args)
 	
 	u32 ifindex = _READ(dev->ifindex);
 
-	u64 *focus_ifindex = bpf_map_lookup_elem(&focus_network_interface, &ifindex);
-	if(!focus_ifindex){
-		return 0;
-	}
+//	u64 *focus_ifindex = bpf_map_lookup_elem(&focus_network_interface, &ifindex);
+//	if(!focus_ifindex){
+//		return 0;
+//	}
+	//u64 *focus_ifindex =2;
 
-	struct bpf_flow_keys flow = {};
+		struct bpf_flow_keys flow = {};
 
 	flow.ifindex = ifindex;
 
 
 	if(prepare_filler(ctx, ctx, evt_type, settings, UF_NEVER_DROP)) {
-		if(flow_dissector(skb, &flow, *focus_ifindex, 0)){
+		if(flow_dissector(skb, &flow, 2, 0)){
 			bpf_tcp_analysis(ctx, &flow, RECEIVE_PACKET);
 		}else{
 			struct sysdig_bpf_per_cpu_state *state = get_local_state(bpf_get_smp_processor_id());
