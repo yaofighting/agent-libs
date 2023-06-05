@@ -61,6 +61,7 @@ static __always_inline void parse_ip(struct iphdr *iph, __u8 *ip_proto, struct b
 	else
 		*ip_proto = _READ(iph->protocol);
 
+	flow->data_len = __constant_htons(_READ(iph->tot_len));
 	if(*ip_proto != IPPROTO_GRE)
 	{
 		flow->src = __constant_htonl(_READ(iph->saddr));
@@ -108,7 +109,7 @@ static __always_inline bool parse_tcp(struct tcphdr *tcph, __u8 *ip_proto, struc
 	bpf_probe_read(&flow->flag, sizeof(flow->flag), (void *)tcph + 12);
 	flow->flag = __constant_htons(flow->flag);
 
-	
+	flow->data_len = flow->data_len - sizeof(struct iphdr) - (flow->flag >> 12) * 4;
 	return true;
 }
 

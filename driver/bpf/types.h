@@ -341,6 +341,7 @@ struct bpf_flow_keys {
 	__be32 ack_seq;
 	__u32 ifindex;
 	__u16 flag;
+	__u16 data_len;
 	union {
 		__be32 ports;
 		__be16 port16[2];

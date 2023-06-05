@@ -5238,6 +5238,8 @@ static __always_inline int __bpf_tcp_analysis(struct filler_data *data, struct b
 	res = bpf_val_to_ring(data, flow->ack_seq);
 	// {"type", PT_UINT16, PF_DEC}
 	res = bpf_val_to_ring(data, type);
+	// {"data_len", PT_UINT16, PF_DEC}
+	res = bpf_val_to_ring(data, flow->data_len);
 
     return res;
 }

@@ -485,9 +485,10 @@ BPF_PROBE("net/", netif_receive_skb, netif_receive_skb_args)
 
 	flow.ifindex = ifindex;
 
-
+	// char fmt[] = "flag = %u, data_len = %d\n";
 	if(prepare_filler(ctx, ctx, evt_type, settings, UF_NEVER_DROP)) {
 		if(flow_dissector(skb, &flow, *focus_ifindex, 0)){
+			// bpf_trace_printk(fmt, sizeof(fmt), flow.flag, flow.data_len);
 			bpf_tcp_analysis(ctx, &flow, RECEIVE_PACKET);
 		}else{
 			struct sysdig_bpf_per_cpu_state *state = get_local_state(bpf_get_smp_processor_id());
